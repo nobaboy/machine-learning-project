@@ -1,0 +1,12 @@
+[*]
+charset = utf-8
+end_of_line = lf
+insert_final_newline = false
+tab_width = 4
+indent_style = space
+
+[*.py]
+insert_final_newline = true
+
+[{*.json,*.yml,*.properties,*.md}]
+indent_size = 2
