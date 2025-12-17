@@ -1,7 +1,7 @@
 # import numpy as np
 import pandas as pd
 import matplotlib as plt
-
+from sklearn.imputer import SimpleImputer
 # from pandas import DataFrame
 
 
@@ -11,6 +11,12 @@ def load_data(file_name: str):
 def obInToCat(list):
     for col in list:
         Proir[col] = Proir[col].astype('category')
+
+def imputer_median(Data,columnName):
+    if columnName in Data.columns:
+        imputer = SimpleImputer(strategy='median')
+
+        Data[[columnName]] = imputer.fit_transform(Data[[columnName]])
 
 if __name__ == "__main__":
 
@@ -54,15 +60,20 @@ if __name__ == "__main__":
     Proir['order_id'] = Proir['order_id'].astype(int32)
     Proir['product_id'] = Proir['product_id'].astype(int32)
     Proir['user_id'] = Proir['user_id'].astype(int32)
-    Proir['aisle_id'] = Proir['ailse_id'].astype(int32)
-    Proir['reordered_id'] = Proir['reordered_id'].astype(int32)
-    Proir['departments_id'] = Proir['departments_id'].astype(int32)
-    Proir['order_hour_of_day'] = Proir['order_hour_of_day'].astype(int32)
+
+    Proir['aisle_id'] = Proir['ailse_id'].astype(int16)
+    
+    Proir['reordered_id'] = Proir['reordered_id'].astype(int8)
+    Proir['departments_id'] = Proir['departments_id'].astype(int8)
+    Proir['order_hour_of_day'] = Proir['order_hour_of_day'].astype(int8)
 
     #step two 
     obInToCat(['porducts','aisle','departments','eval_set'])
 
 
-    
+    #--------visualization--------
+    Proir.hist(bins=20,figsize=(12,4))
 
 
+    #--------Clean The data--------
+    imputer_median[Proir,'days_since_prior_order']
