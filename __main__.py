@@ -1,8 +1,12 @@
 import pandas as pd
 from pandas import DataFrame
 
-from utils import load_data, calculate_memory_usage, format_memory_size, optimize_memory_usage
+from utils import load_data, calculate_memory_usage, format_memory_size, optimize_memory_usage, imputerColumn
 from visualization import visualize_memory_usage, analyze_and_visualize_missing
+
+from sklearn.ensemble import RandomForestRegressor
+from sklearn.experimental import enable_iterative_imputer
+from sklearn.impute import IterativeImputer , SimpleImputer
 
 
 def remove_outliers(df: DataFrame, cols: list[str]):
@@ -82,8 +86,7 @@ def main():
     # TODO make this a for loop (even though it's only 1 column with missing values), or even better, replace it
     #      with the preprocessing pipeline and provide missing_cols in the builder function
     if missing_cols and "days_since_prior_order" in missing_cols:
-        median = data_full["days_since_prior_order"].median()
-        data_full["days_since_prior_order"] = data_full["days_since_prior_order"].fillna(median)
+        data_full = imputerColumn(data_full, "days_since_prior_order", "median")
 
     #  ----- Outlier Handling -----
 
@@ -96,7 +99,7 @@ def main():
     print(train.info())
     print("=" * 50)
     print(data_full.info())
-
+    print("dsla;kfhfh")
     print(format_memory_size(calculate_memory_usage(train)))
     print(format_memory_size(calculate_memory_usage(data_full)))
 
