@@ -1,21 +1,32 @@
+import numpy as np
+import pandas as pd
+from pandas import DataFrame
+
+__all__ = (
+    "load_data",
+    "calculate_memory_usage",
+    "format_memory_size",
+    "optimize_memory_usage",
+)
 
 
 def load_data(path: str) -> DataFrame:
-    df = pd.read_csv(Path, engine="pyarrow")  # 30 - 50 %
+    df = pd.read_csv(path, engine="pyarrow")
     mem_usage = calculate_memory_usage(df)
-    print(f"Loaded '{path}' ({format_memory_usage(mem_usage)})")
+    print(f"Loaded '{path}' ({format_memory_size(mem_usage)})")
     return df
 
 
 def calculate_memory_usage(*dfs: DataFrame) -> int:
-    return sum(df.memory_usage(deep=True).sum() for df in dfs)
+    return sum(df.memory_usage().sum() for df in dfs)
 
 
+# TODO move out sizes into consts
 def format_memory_size(size: int) -> str:
     if size < 1024:
         return f"{size:.0f} B"
-    elif size < 1024 ** 2:
-        return f"{size:.2f} KiB"
+    if size < 1024 ** 2:
+        return f"{size / 1024:.2f} KiB"
     return f"{size / 1024 ** 2:.2f} MiB"
 
 
@@ -39,13 +50,14 @@ def optimize_memory_usage(name: str, df: DataFrame):
         elif pd.api.types.is_float_dtype(col_dtype):
             df[col] = df[col].astype(np.float32)
 
-        elif col_type == object:
+        elif col_dtype == object:
             unique = len(df[col].unique())
             total = len(df[col])
 
+            # we only want to convert high cardinality columns (e.g. eval_set from orders dataset)
             if unique / total < 0.5:
                 df[col] = df[col].astype("category")
 
     after = calculate_memory_usage(df)
     diff = 100 * (before - after) / before
-    print(f"Reduced memory usage of {name} from {format_memory_size(before)} to {format_memory_size(after)} ({diff:.1f}% reduction)")
+    print(f"Reduced memory usage of '{name}' from {format_memory_size(before)} to {format_memory_size(after)} ({diff:.1f}% reduction)")

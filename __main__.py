@@ -1,36 +1,25 @@
 import pandas as pd
-import matplotlib.pyplot as plt
-import numpy as np
-from sklearn.impute import SimpleImputer
-from pandas.plotting import scatter_matrix
+from pandas import DataFrame
 
-from utils import load_data, calculate_memory_usage, format_memory_usage, optimize_memory_usage
+from utils import load_data, calculate_memory_usage, format_memory_size, optimize_memory_usage
+from visualization import visualize_memory_usage, analyze_and_visualize_missing
 
 
-def imputer_median(data, colName):
-    if colName in data.columns:
-        imputer = SimpleImputer(strategy="median")
-        data[[colName]] = imputer.fit_transform(data[[colName]])
-    return data  # Added return statement
-
-def remove_putliers(data, col):
-    if isinstance(col, str):
-        col = [col]  # Convert single column name to list
-
-    for cl in col:
-        if cl in Data.columns and Data[cl].dtype in ["int64", "float64", "int32", "float32"]:
-            Q1 = Data[cl].quantile(0.25)
-            Q3 = Data[cl].quantile(0.75)
+def remove_outliers(df: DataFrame, cols: list[str]):
+    for col in cols:
+        if col in df.columns and pd.api.types.is_numeric_dtype(df[col]):
+            Q1 = df[col].quantile(0.25)
+            Q3 = df[col].quantile(0.75)
             IQT = Q3 - Q1
 
-            # Avoid division by zero
+            # avoid division by zero
             if IQT > 0:
                 lower = Q1 - 1.5 * IQT
                 upper = Q3 + 1.5 * IQT
 
-                Data = Data[(Data[cl] >= lower) & (Data[cl] <= upper)]
+                df = df[(df[col] >= lower) & (df[col] <= upper)]
 
-    return Data
+    return df
 
 
 def main():
@@ -43,75 +32,73 @@ def main():
         "train": load_data("data/order_products__train.csv"),
     }
 
+    # ----- Optimization -----
+
     mem_usage_before = calculate_memory_usage(*datasets.values())
-    
-    for name, dataset in dataset.items():
+    print()
+
+    for name, dataset in datasets.items():
         optimize_memory_usage(name, dataset)
 
     mem_usage_after = calculate_memory_usage(*datasets.values())
     diff = 100 * (mem_usage_before - mem_usage_after) / mem_usage_before
-    print(f"\n\nReduced total memory usage from {format_memory_size(mem_usage_before)} to {format_memory_size(mem_usage_after)} ({diff:.1f}% reduction)\n")
+    print(f"\nReduced total memory usage from {format_memory_size(mem_usage_before)} to {format_memory_size(mem_usage_after)} ({diff:.1f}% reduction)")
+
+    # ----- Visualization -----
+
+    visualize_memory_usage(mem_usage_before, mem_usage_after)
 
     aisles, departments, products = datasets["aisles"], datasets["departments"], datasets["products"]
     orders, prior, train = datasets["orders"], datasets["prior"], datasets["train"]
 
-    # 1. Merge PRIOR data
-    prior_orders = (
-        prior.merge(orders, on="order_id")
-        # .merge(products, on="product_id")
-        # .merge(aisles, on="aisle_id")
-        # .merge(departments, on="department_id")
-    )
+    print("\nMerging datasets...")
 
-    # Preparing labels from TRAIN (NO DATA LEAKAGE)
+    prior_orders = prior.merge(orders, on="order_id")
 
-    # 2. Get labels from TRAIN
+    products_full = products.merge(aisles, on="aisle_id").merge(departments, on="department_id")
+
+    # we use this for most of the eda we have to do
+    data_full = prior_orders.merge(products_full, on="product_id")
+
+    missing_cols = analyze_and_visualize_missing(data_full)
+
+    base_features = data_full[["user_id", "product_id"]].drop_duplicates()
+
     train_labels = train[["order_id", "product_id", "reordered"]]
+    train_user = train_labels.merge(orders[["order_id", "user_id"]], on="order_id")
 
-    train_with_user = train_labels.merge(
-        orders[["order_id", "user_id"]],  # Only take these two columns
-        on="order_id",
-    )
-
-    # 3. Create base user-product
-    base_features = prior_orders[["user_id", "product_id"]].drop_duplicates()
-
-    # 4. FINAL MERGE Combine features with labels
-    train_data = base_features.merge(
-        train_with_user[["user_id", "product_id", "reordered"]],
+    train = base_features.merge(
+        train_user[["user_id", "product_id", "reordered"]],
         on=["user_id", "product_id"],
-        how="left"  # Keep all pairs from prior
+        how="left", # keep all the pairs from prior
     )
 
-    # Fill NaN with 0 (products not in last order)
-    train_data["reordered"] = train_data["reordered"].fillna(0)
+    # keeping all the pairs from prior introduces NaN values, which in python is a floating point number
+    # so fill those missing values with 0 and optimize the dtype again
+    train["reordered"] = train["reordered"].fillna(0).astype("int8")
 
-    # Handle missing values in orders products
-    print(prior_orders.isnull().sum())
-    # Check for missing values
-    missing_info = prior_orders.isna().sum()
-    missing_cols = missing_info[missing_info > 0]
+    # ----- Imputation -----
 
-    if not missing_cols.empty:
-        for col, count in missing_cols.items():
-            percent = (count / len(prior_orders)) * 100
+    if "days_since_prior_order" in missing_cols:
+        median = data_full["days_since_prior_order"].median()
+        data_full["days_since_prior_order"] = data_full["days_since_prior_order"].fillna(median)
 
-        if "days_since_prior_order" in missing_cols.index:
-            median_val = prior_orders["days_since_prior_order"].median()
-            prior_orders["days_since_prior_order"] = prior_orders["days_since_prior_order"].fillna(median_val)
+    #  ----- Outlier Handling -----
 
-    print(prior_orders.isnull().sum())
-    
-    # Remove outliers
-    columns_to_check = ["add_to_cart_order", "days_since_prior_order"]
+    # TODO do I just use missing_cols instead of manually making a list of cols to check?
+    columns_to_check = ['add_to_cart_order', 'days_since_prior_order']
+    # TODO the professor suggested winsorizing, check that out instead of removing outliers
+    data_full = remove_outliers(data_full, columns_to_check)
 
-    prior_orders = OutliersRemover(prior_orders, columns_to_check)
+    # ----- Misc. (just some info at the moment) -----
 
-    print(train_data.info())
+    print(train.info())
     print("=" * 50)
-    print(prior_orders.info())
+    print(data_full.info())
+
+    print(format_memory_size(calculate_memory_usage(train)))
+    print(format_memory_size(calculate_memory_usage(data_full)))
 
 
 if __name__ == "__main__":
     main()
-    
