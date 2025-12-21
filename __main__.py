@@ -87,7 +87,6 @@ def main():
 
     #  ----- Outlier Handling -----
 
-    # TODO do I just use missing_cols instead of manually making a list of cols to check?
     columns_to_check = ['add_to_cart_order', 'days_since_prior_order']
     # TODO the professor suggested winsorizing, check that out instead of removing outliers
     data_full = remove_outliers(data_full, columns_to_check)
