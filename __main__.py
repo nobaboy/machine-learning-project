@@ -79,8 +79,8 @@ def main():
 
     # ----- Imputation -----
 
-    # TODO make this a for loop (even though it's only 1 column with missing values), or better, replace it with a
-    #      pipeline and use the missing_cols in it some how???
+    # TODO make this a for loop (even though it's only 1 column with missing values), or even better, replace it
+    #      with the preprocessing pipeline and provide missing_cols in the builder function
     if missing_cols and "days_since_prior_order" in missing_cols:
         median = data_full["days_since_prior_order"].median()
         data_full["days_since_prior_order"] = data_full["days_since_prior_order"].fillna(median)
