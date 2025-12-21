@@ -79,7 +79,7 @@ def main():
 
     # ----- Imputation -----
 
-    if "days_since_prior_order" in missing_cols:
+    if missing_cols and "days_since_prior_order" in missing_cols:
         median = data_full["days_since_prior_order"].median()
         data_full["days_since_prior_order"] = data_full["days_since_prior_order"].fillna(median)
 
