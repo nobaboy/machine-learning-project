@@ -1,30 +1,12 @@
 import pandas as pd
 from pandas import DataFrame
 
-from utils import load_data, calculate_memory_usage, format_memory_size, optimize_memory_usage, imputerColumn
+from utils import load_data, calculate_memory_usage, format_memory_size, optimize_memory_usage, imputerColumn , remove_outliers
 from visualization import visualize_memory_usage, analyze_and_visualize_missing
 
 from sklearn.ensemble import RandomForestRegressor
 from sklearn.experimental import enable_iterative_imputer
 from sklearn.impute import IterativeImputer , SimpleImputer
-
-
-def remove_outliers(df: DataFrame, cols: list[str]):
-    for col in cols:
-        if col in df.columns and pd.api.types.is_numeric_dtype(df[col]):
-            Q1 = df[col].quantile(0.25)
-            Q3 = df[col].quantile(0.75)
-            IQT = Q3 - Q1
-
-            # avoid division by zero
-            if IQT > 0:
-                lower = Q1 - 1.5 * IQT
-                upper = Q3 + 1.5 * IQT
-
-                df = df[(df[col] >= lower) & (df[col] <= upper)]
-
-    return df
-
 
 def main():
     datasets: dict[str, DataFrame] = {
@@ -57,12 +39,31 @@ def main():
 
     print("\nMerging datasets...")
 
-    prior_orders = prior.merge(orders, on="order_id")
-
-    products_full = products.merge(aisles, on="aisle_id").merge(departments, on="department_id")
+    # prior_orders = prior.merge(
+    #     orders,
+    #     on="order_id"
+    # # )
+    #
+    #
+    # products_full = (
+        # products
+            # .merge(aisles, on="aisle_id")
+            # .merge(departments, on="department_id"
+    # )
+    # )
 
     # we use this for most of the eda we have to do
-    data_full = prior_orders.merge(products_full, on="product_id")
+    data_full = (
+        prior
+        .merge(orders, on="order_id")
+        .merge(
+            products
+            .merge(aisles, on="aisle_id")
+            .merge(departments, on="department_id"),
+            on="product_id"
+        )
+    ) # final version
+
 
     missing_cols = analyze_and_visualize_missing(data_full)
 
@@ -104,5 +105,14 @@ def main():
     print(format_memory_size(calculate_memory_usage(data_full)))
 
 
+    #TODO visualize for Outliers before remove and statistically
+
+
+    data_full = data_full.remove_outliers(data_full , "The Outleirs that apper in the visualize")
+
+
+    #TODO visualize for Outliers after remove and statistically
+
+    # we choose to remove Outliers over Treatment because we have a big amount of data so DELETE them don't make any damage
 if __name__ == "__main__":
     main()

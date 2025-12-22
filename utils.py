@@ -61,6 +61,7 @@ def optimize_memory_usage(name: str, df: DataFrame):
     after = calculate_memory_usage(df)
     diff = 100 * (before - after) / before
     print(f"Reduced memory usage of '{name}' from {format_memory_size(before)} to {format_memory_size(after)} ({diff:.1f}% reduction)")
+
 def imputerColumn(data: DataFrame, column: str, strategy: str, **kwargs):
     if column not in data.columns: # Make sure column in the DataFram
         print(f"Column {column} not found")
@@ -109,3 +110,19 @@ def imputerColumn(data: DataFrame, column: str, strategy: str, **kwargs):
     data[numCol] = iterative_imputer.fit_transform(data[numCol])
     print(f"Missing values after: {data[numCol].isna().sum()}")
     return data
+
+def remove_outliers(df: DataFrame, cols: list[str]):
+    for col in cols:
+        if col in df.columns and pd.api.types.is_numeric_dtype(df[col]):
+            Q1 = df[col].quantile(0.25)
+            Q3 = df[col].quantile(0.75)
+            IQT = Q3 - Q1
+
+            # avoid division by zero
+            if IQT > 0:
+                lower = Q1 - 1.5 * IQT
+                upper = Q3 + 1.5 * IQT
+
+                df = df[(df[col] >= lower) & (df[col] <= upper)]
+
+    return df
