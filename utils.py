@@ -1,14 +1,17 @@
 import numpy as np
 import pandas as pd
 from pandas import DataFrame
-
+from sklearn.ensemble import RandomForestRegressor
+from sklearn.experimental import enable_iterative_imputer
+from sklearn.impute import IterativeImputer , SimpleImputer
+import matplotlib.pyplot as plt
+import seaborn as sns
 __all__ = (
     "load_data",
     "calculate_memory_usage",
     "format_memory_size",
     "optimize_memory_usage",
 )
-
 
 def load_data(path: str) -> DataFrame:
     df = pd.read_csv(path, engine="pyarrow")
@@ -62,22 +65,40 @@ def optimize_memory_usage(name: str, df: DataFrame):
     diff = 100 * (before - after) / before
     print(f"Reduced memory usage of '{name}' from {format_memory_size(before)} to {format_memory_size(after)} ({diff:.1f}% reduction)")
 
+
+import matplotlib.pyplot as plt
+
 def imputerColumn(data: DataFrame, column: str, strategy: str, **kwargs):
-    if column not in data.columns: # Make sure column in the DataFram
+    if column not in data.columns:
         print(f"Column {column} not found")
         return data
 
     print(f"Imputing column {column} with strategy {strategy}")
-    print(f"Missing values before: {data[column].isna().sum()}")
 
-    #--------Simple strategies---------
-    if strategy in ["median", "mean","most_frequent"]:
+    # Create figure for before/after
+    fig, axes = plt.subplots(1, 2, figsize=(12, 5))
+    fig.suptitle(f'Column: {column} - Strategy: {strategy}', fontsize=14, fontweight='bold')
+
+    # Plot BEFORE imputation
+    axes[0].set_title(f'Before Imputation: {data[column].isna().sum()}')
+
+    # For numeric columns
+    if np.issubdtype(data[column].dtype, np.number):
+        axes[0].hist(data[column], bins=30, edgecolor='black', alpha=0.7, color='blue')
+        axes[0].set_xlabel('Value')
+        axes[0].set_ylabel('Frequency')
+
+
+    missing_before = data[column].isna().sum()
+    print(f"Missing values before: {missing_before}")
+
+    # --------Simple strategies---------
+    if strategy in ["median", "mean", "most_frequent"]:
         imputer = SimpleImputer(strategy=strategy)
-        data[[column]] = imputer.fit_transform(data[[column]]) # [[]] cause impute only work with two dimensional list || we can u .tolist
+        data[[column]] = imputer.fit_transform(data[[column]])
 
-    #-------- Sentinel-------
+    # -------- Sentinel-------
     elif strategy == "sentinel":
-        # choose sentinel value based on dtype
         if np.issubdtype(data[column].dtype, np.integer):
             sentinel = kwargs.get("fill_value", -999)
         elif np.issubdtype(data[column].dtype, np.floating):
@@ -86,43 +107,127 @@ def imputerColumn(data: DataFrame, column: str, strategy: str, **kwargs):
             sentinel = kwargs.get("fill_value", "MISSING")
         data[column] = data[column].fillna(sentinel)
 
-    # sentinel do not work with (linearRegression , KNN) because the fictitious value distorts the calculations
-
-
-    # The iterative is a way to fill Nan values but with predect the Nan values using model like ( Regression , Random forset or Iterative imputer )
-    #--------Iterative Model-Based--------
-    elif strategy == "iterative" :
+    # --------Iterative Model-Based--------
+    elif strategy == "iterative":
         numCol = data.select_dtypes(include=[np.number]).columns
+
         iterative_imputer = IterativeImputer(
-            estimator= RandomForestRegressor(
+            estimator=RandomForestRegressor(
                 n_estimators=kwargs.get("n_estimators", 50),
                 random_state=42
-        ),
-            maxIter=kwargs.get("max_iter", 10),
+            ),
+            max_iter=kwargs.get("max_iter", 10),
             random_state=42
         )
-    # Apply iterative work to numeric columns
+        data[numCol] = iterative_imputer.fit_transform(data[numCol])
 
-    data[numCol] = iterative_imputer.fit_transform(data[numCol])
+    else:
+        print(f"Unknown strategy: {strategy}")
+        plt.close(fig)  # Close the figure if strategy is unknown
+        return data
 
-    # Make sure we onlay apply on numeric columns
+    # Plot AFTER imputation
+    axes[1].set_title(f'After Imputation\nMissing: {data[column].isna().sum()}')
 
-    data[numCol] = iterative_imputer.fit_transform(data[numCol])
-    print(f"Missing values after: {data[numCol].isna().sum()}")
+    # For numeric columns
+    if np.issubdtype(data[column].dtype, np.number):
+        axes[1].hist(data[column], bins=30, edgecolor='black', alpha=0.7, color='green')
+        axes[1].set_xlabel('Value')
+        axes[1].set_ylabel('Frequency')
+
+        # Add vertical lines for statistics (only if not sentinel with extreme values)
+        if strategy != "sentinel":
+            if strategy == "median":
+                median_val = data[column].median()
+                axes[1].axvline(median_val, color='red', linestyle='--',
+                                label=f'Median: {median_val:.2f}')
+            elif strategy == "mean":
+                mean_val = data[column].mean()
+                axes[1].axvline(mean_val, color='red', linestyle='--',
+                                label=f'Mean: {mean_val:.2f}')
+            axes[1].legend()
+
+    # For categorical columns
+    else:
+        value_counts = data[column].value_counts().head(10)
+        bars = axes[1].bar(range(len(value_counts)), value_counts.values,
+                           color='green', alpha=0.7)
+        axes[1].set_xticks(range(len(value_counts)))
+        axes[1].set_xticklabels(value_counts.index, rotation=45, ha='right')
+        axes[1].set_ylabel('Count')
+
+        # Add percentage labels
+        total = value_counts.sum()
+        for i, (bar, val) in enumerate(zip(bars, value_counts.values)):
+            percentage = 100 * val / total
+            axes[1].text(bar.get_x() + bar.get_width() / 2, bar.get_height(),
+                         f'{percentage:.1f}%', ha='center', va='bottom', fontsize=8)
+
+    # Adjust layout and show plot
+    plt.show()
+
+    print(f"Missing values after: {data[column].isna().sum()}")
+
     return data
+
 
 def remove_outliers(df: DataFrame, cols: list[str]):
     for col in cols:
-        if col in df.columns and pd.api.types.is_numeric_dtype(df[col]):
-            Q1 = df[col].quantile(0.25)
-            Q3 = df[col].quantile(0.75)
-            IQT = Q3 - Q1
+        if col not in df.columns or not pd.api.types.is_numeric_dtype(df[col]):
+            continue
 
-            # avoid division by zero
-            if IQT > 0:
-                lower = Q1 - 1.5 * IQT
-                upper = Q3 + 1.5 * IQT
+        print(f"\n Processing: {col}")
 
-                df = df[(df[col] >= lower) & (df[col] <= upper)]
+        # Statistics
+        before_count = len(df)
+        Q1 = df[col].quantile(0.25)
+        Q3 = df[col].quantile(0.75)
+        IQR = Q3 - Q1
+
+        if IQR > 0:
+            lower = Q1 - 1.5 * IQR
+            upper = Q3 + 1.5 * IQR
+
+            # Define what to keep and what to remove
+            mask_keep = (df[col] >= lower) & (df[col] <= upper)
+            outliers_count = (~mask_keep).sum()  # Count the inverse True outliers
+
+            fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 4))
+
+            ax1.ticklabel_format(style='sci', axis='y', scilimits=(6, 6))
+            ax2.ticklabel_format(style='sci', axis='y', scilimits=(6, 6))
+
+            # Before plot
+            ax1.hist(df[col], bins=30, alpha=0.6, color='red', label='Outliers included')
+            ax1.set_title(f'BEFORE: {col}')
+            ax1.set_xlabel(col)
+            ax1.set_ylabel('Frequency')
+            ax1.legend()
+
+            # After plot
+            ax2.hist(df[mask_keep][col], bins=30, alpha=0.6, color='green', label='Outliers removed')
+            ax2.set_title(f'AFTER: {col}')
+            ax2.set_xlabel(col)
+            ax2.set_ylabel('Frequency')
+            ax2.legend()
+
+            plt.suptitle(
+                f'Outlier Removal: {col}\nRemoved {outliers_count} outliers ({outliers_count / before_count * 100:.1f}%)')
+            plt.show()
+
+            # Apply filter
+            df = df[mask_keep].copy()
+
+            print(f"   Removed: {outliers_count} outliers ({outliers_count / before_count * 100:.1f}%)")
+            print(f"   Bounds: [{lower:.2f}, {upper:.2f}]")
 
     return df
+
+
+
+
+
+
+
+
+

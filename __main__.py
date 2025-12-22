@@ -1,5 +1,7 @@
 import pandas as pd
 from pandas import DataFrame
+import matplotlib.pyplot as plt
+import seaborn as sns
 
 from utils import load_data, calculate_memory_usage, format_memory_size, optimize_memory_usage, imputerColumn , remove_outliers
 from visualization import visualize_memory_usage, analyze_and_visualize_missing
@@ -21,7 +23,6 @@ def main():
     # ----- Optimization -----
 
     mem_usage_before = calculate_memory_usage(*datasets.values())
-    print()
 
     for name, dataset in datasets.items():
         optimize_memory_usage(name, dataset)
@@ -86,33 +87,23 @@ def main():
 
     # TODO make this a for loop (even though it's only 1 column with missing values), or even better, replace it
     #      with the preprocessing pipeline and provide missing_cols in the builder function
-    if missing_cols and "days_since_prior_order" in missing_cols:
-        data_full = imputerColumn(data_full, "days_since_prior_order", "median")
+
+    data_full = imputerColumn(data_full, "days_since_prior_order", "median") # we choose to remove Outliers over Treatment because we have a big amount of data so DELETE them don't make any damage
 
     #  ----- Outlier Handling -----
 
     columns_to_check = ['add_to_cart_order', 'days_since_prior_order']
     # TODO the professor suggested winsorizing, check that out instead of removing outliers
     data_full = remove_outliers(data_full, columns_to_check)
-
     # ----- Misc. (just some info at the moment) -----
 
     print(train.info())
     print("=" * 50)
     print(data_full.info())
-    print("dsla;kfhfh")
     print(format_memory_size(calculate_memory_usage(train)))
     print(format_memory_size(calculate_memory_usage(data_full)))
 
 
-    #TODO visualize for Outliers before remove and statistically
 
-
-    data_full = data_full.remove_outliers(data_full , "The Outleirs that apper in the visualize")
-
-
-    #TODO visualize for Outliers after remove and statistically
-
-    # we choose to remove Outliers over Treatment because we have a big amount of data so DELETE them don't make any damage
 if __name__ == "__main__":
     main()
