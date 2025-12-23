@@ -4,7 +4,7 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 
 from utils import load_data, calculate_memory_usage, format_memory_size, optimize_memory_usage, imputerColumn , remove_outliers ,feature_scaling
-from visualization import visualize_memory_usage, analyze_and_visualize_missing,visualize_scaling_statistics
+from visualization import visualize_memory_usage, analyze_and_visualize_missing
 
 from sklearn.ensemble import RandomForestRegressor
 from sklearn.experimental import enable_iterative_imputer
@@ -112,7 +112,6 @@ def main():
         method='standard',
         columns_to_exclude=['user_id', 'product_id', 'reordered']
     )
-    pri
     # ----- Feature Scaling -----
 
     print("\nFeature scaling...")
@@ -124,9 +123,6 @@ def main():
                             'aisle_id', 'department_id', 'reordered']
     )
 
-    # Visualize the scaling statistics
-    visualize_scaling_statistics(data_full, data_full_scaled, columns_to_show=5)
-
     # If you want to scale the data_train
     train_scaled, _ = feature_scaling(
         data=train,
@@ -137,9 +133,9 @@ def main():
 
     # ----- Misc. (just some info at the moment) -----
 
-    print(train.info())
+    print(train_scaled.info())
     print("=" * 50)
-    print(data_full.info())
+    print(data_full_scaled.info())
     print(format_memory_size(calculate_memory_usage(train)))
     print(format_memory_size(calculate_memory_usage(data_full)))
 

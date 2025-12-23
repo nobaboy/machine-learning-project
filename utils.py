@@ -234,8 +234,9 @@ def feature_scaling(data: DataFrame, method: str, columns_to_exclude: list[str])
     # Filter out excluded columns
     columns_to_scale = [col for col in numeric_cols if col not in columns_to_exclude]
 
+    # TODO when u see this comment : there's an logic
     if len(columns_to_scale) == 0:
-        print("No columns to scale. Check your data types or exclusion list.")
+        print("No columns to scale Check your data types or exclusion list")
         return data, None
 
     print(f"\nScaling {len(columns_to_scale)} numeric columns...")
@@ -244,17 +245,13 @@ def feature_scaling(data: DataFrame, method: str, columns_to_exclude: list[str])
     # Choose scaler based on method
     if method == 'standard':
         scaler = StandardScaler()
-        scaler_name = "StandardScaler (zero mean, unit variance)"
     elif method == 'minmax':
         scaler = MinMaxScaler()
-        scaler_name = "MinMaxScaler (range [0, 1])"
     else:
-        raise ValueError("method must be 'standard' or 'minmax'")
+        print("method must be 'standard' or 'minmax'")
 
     # Apply scaling
     data[columns_to_scale] = scaler.fit_transform(data[columns_to_scale])
-
-    print(f"Used {scaler_name}")
 
     return data, scaler
 
