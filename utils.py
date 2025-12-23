@@ -5,7 +5,7 @@ from sklearn.ensemble import RandomForestRegressor
 from sklearn.experimental import enable_iterative_imputer
 from sklearn.impute import IterativeImputer , SimpleImputer
 import matplotlib.pyplot as plt
-import seaborn as sns
+from sklearn.preprocessing import StandardScaler, MinMaxScaler
 __all__ = (
     "load_data",
     "calculate_memory_usage",
@@ -65,8 +65,6 @@ def optimize_memory_usage(name: str, df: DataFrame):
     diff = 100 * (before - after) / before
     print(f"Reduced memory usage of '{name}' from {format_memory_size(before)} to {format_memory_size(after)} ({diff:.1f}% reduction)")
 
-
-import matplotlib.pyplot as plt
 
 def imputerColumn(data: DataFrame, column: str, strategy: str, **kwargs):
     if column not in data.columns:
@@ -224,9 +222,41 @@ def remove_outliers(df: DataFrame, cols: list[str]):
     return df
 
 
+from sklearn.preprocessing import StandardScaler, MinMaxScaler
 
 
+def feature_scaling(data: DataFrame, method: str, columns_to_exclude: list[str]):
+    # Select numeric columns
+    numeric_cols = data.select_dtypes(
+        include=['int16', 'int32', 'int8', 'float16', 'float32', 'float64']
+    ).columns
 
+    # Filter out excluded columns
+    columns_to_scale = [col for col in numeric_cols if col not in columns_to_exclude]
+
+    if len(columns_to_scale) == 0:
+        print("No columns to scale. Check your data types or exclusion list.")
+        return data, None
+
+    print(f"\nScaling {len(columns_to_scale)} numeric columns...")
+    print(f"Columns to scale: {columns_to_scale}")
+
+    # Choose scaler based on method
+    if method == 'standard':
+        scaler = StandardScaler()
+        scaler_name = "StandardScaler (zero mean, unit variance)"
+    elif method == 'minmax':
+        scaler = MinMaxScaler()
+        scaler_name = "MinMaxScaler (range [0, 1])"
+    else:
+        raise ValueError("method must be 'standard' or 'minmax'")
+
+    # Apply scaling
+    data[columns_to_scale] = scaler.fit_transform(data[columns_to_scale])
+
+    print(f"Used {scaler_name}")
+
+    return data, scaler
 
 
 

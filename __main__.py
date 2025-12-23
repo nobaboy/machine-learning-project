@@ -3,8 +3,8 @@ from pandas import DataFrame
 import matplotlib.pyplot as plt
 import seaborn as sns
 
-from utils import load_data, calculate_memory_usage, format_memory_size, optimize_memory_usage, imputerColumn , remove_outliers
-from visualization import visualize_memory_usage, analyze_and_visualize_missing
+from utils import load_data, calculate_memory_usage, format_memory_size, optimize_memory_usage, imputerColumn , remove_outliers ,feature_scaling
+from visualization import visualize_memory_usage, analyze_and_visualize_missing,visualize_scaling_statistics
 
 from sklearn.ensemble import RandomForestRegressor
 from sklearn.experimental import enable_iterative_imputer
@@ -92,9 +92,49 @@ def main():
 
     #  ----- Outlier Handling -----
 
-    columns_to_check = ['add_to_cart_order', 'days_since_prior_order']
+    columns_to_check = ['days_since_prior_order', 'add_to_cart_order']
     # TODO the professor suggested winsorizing, check that out instead of removing outliers
     data_full = remove_outliers(data_full, columns_to_check)
+
+    # ----- Feature Scaling -----
+
+    # Apply scaling to data_full
+    data_full_scaled, scaler = feature_scaling(
+        data=data_full,
+        method='standard',  # or 'minmax'
+        columns_to_exclude=['order_id', 'user_id', 'product_id',
+                            'aisle_id', 'department_id', 'reordered']
+    )
+
+    # If you want to scale the data_train
+    train_scaled, _ = feature_scaling(
+        data=train,
+        method='standard',
+        columns_to_exclude=['user_id', 'product_id', 'reordered']
+    )
+    pri
+    # ----- Feature Scaling -----
+
+    print("\nFeature scaling...")
+    # Apply scaling to data_full
+    data_full_scaled, scaler = feature_scaling(
+        data=data_full,
+        method='standard',  # or 'minmax'
+        columns_to_exclude=['order_id', 'user_id', 'product_id',
+                            'aisle_id', 'department_id', 'reordered']
+    )
+
+    # Visualize the scaling statistics
+    visualize_scaling_statistics(data_full, data_full_scaled, columns_to_show=5)
+
+    # If you want to scale the data_train
+    train_scaled, _ = feature_scaling(
+        data=train,
+        method='standard',
+        columns_to_exclude=['user_id', 'product_id', 'reordered']
+    )
+
+
     # ----- Misc. (just some info at the moment) -----
 
     print(train.info())
