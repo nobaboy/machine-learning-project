@@ -255,7 +255,7 @@ def feature_scaling(data: DataFrame, method: str, columns_to_exclude: list[str])
 
     return data, scaler
 
-def create_simple_features(data_full, train_data, orders_data):
+def features_engineering(data_full, train_data, orders_data):
 
     print("Step 1: Creating user features: ")
     # User-level features
