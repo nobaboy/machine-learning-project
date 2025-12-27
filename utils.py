@@ -221,10 +221,6 @@ def remove_outliers(df: DataFrame, cols: list[str]):
 
     return df
 
-
-from sklearn.preprocessing import StandardScaler, MinMaxScaler
-
-
 def feature_scaling(data: DataFrame, method: str, columns_to_exclude: list[str]):
     # Select numeric columns
     numeric_cols = data.select_dtypes(
