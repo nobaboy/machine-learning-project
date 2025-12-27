@@ -239,7 +239,7 @@ def feature_scaling(data: DataFrame, method: str, columns_to_exclude: list[str])
         print("No columns to scale Check your data types or exclusion list")
         return data, None
 
-    print(f"\nScaling {len(columns_to_scale)} numeric columns...")
+    print(f"\nScaling {len(columns_to_scale)} numeric columns: ")
     print(f"Columns to scale: {columns_to_scale}")
 
     # Choose scaler based on method
@@ -255,6 +255,72 @@ def feature_scaling(data: DataFrame, method: str, columns_to_exclude: list[str])
 
     return data, scaler
 
+def create_simple_features(data_full, train_data, orders_data):
 
+    print("Step 1: Creating user features: ")
+    # User-level features
+    user_features = data_full.groupby('user_id').agg(
+        user_total_orders=('order_id', 'nunique'),  # How many orders total
+        user_avg_items=('product_id', 'count'),  # Average items per user
+        user_reorder_rate=('reordered', 'mean')  # User's reorder rate
+    ).reset_index()
+
+    print("Step 2: Creating product features: ")
+    # Product-level features
+    product_features = data_full.groupby('product_id').agg(
+        product_popularity=('order_id', 'nunique'),  # How many times ordered
+        product_avg_cart_pos=('add_to_cart_order', 'mean')  # Average position in cart
+    ).reset_index()
+    print("Step 3: Creating user-product features: ")
+
+    # User-Product interaction features
+    up_features = data_full.groupby(['user_id', 'product_id']).agg( # It lets you calculate multiple statistics at once
+        up_times_bought=('order_id', 'count'),  # How many times user bought this product
+        up_last_order_num=('order_number', 'max')  # Last order when bought
+    ).reset_index()
+    print("Step 4: Adding time features: ")
+
+    # Time features
+    time_features = orders_data[['order_id', 'order_dow', 'order_hour_of_day']].copy()
+    time_features.columns = ['order_id', 'order_day', 'order_hour']
+    print("Step 5: Merging all features: ")
+
+    # Start with train data
+    features = train_data.copy()
+
+    # Merge user features
+    features = features.merge(user_features, on='user_id', how='left')
+
+    # Merge product features
+    features = features.merge(product_features, on='product_id', how='left')
+
+    # Merge user-product features
+    features = features.merge(up_features, on=['user_id', 'product_id'], how='left')
+
+    # Merge time features
+    if 'order_id' in features.columns:
+        features = features.merge(time_features, on='order_id', how='left')
+
+    # Add one simple interaction feature
+    features['orders_x_bought'] = features['user_total_orders'] * features['up_times_bought']
+
+    print(f" Created {features.shape[1]} features total")
+    print(f" Final shape: {features.shape}")
+
+    return features
+
+
+def get_feature_columns(features_df):
+
+    # Columns to exclude
+    exclude_cols = ['user_id', 'product_id', 'order_id', 'reordered']
+
+    feature_cols = [col for col in features_df.columns if col not in exclude_cols]
+
+    print(f"\n Feature columns ({len(feature_cols)} total):")
+    for col in feature_cols:
+        print(f"  - {col}")
+
+    return feature_cols
 
 

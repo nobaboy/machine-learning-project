@@ -3,7 +3,7 @@ from pandas import DataFrame
 import matplotlib.pyplot as plt
 import seaborn as sns
 
-from utils import load_data, calculate_memory_usage, format_memory_size, optimize_memory_usage, imputerColumn , remove_outliers ,feature_scaling
+from utils import load_data, calculate_memory_usage, format_memory_size, optimize_memory_usage, imputerColumn , remove_outliers ,feature_scaling, create_simple_features, get_feature_columns
 from visualization import visualize_memory_usage, analyze_and_visualize_missing
 
 from sklearn.ensemble import RandomForestRegressor
@@ -139,7 +139,15 @@ def main():
     print(format_memory_size(calculate_memory_usage(train)))
     print(format_memory_size(calculate_memory_usage(data_full)))
 
+    # Use the simple feature engineering function
+    engineered_features = create_simple_features(
+        data_full=data_full,  # Your merged dataset
+        train_data=train,  # Your training data
+        orders_data=datasets['orders']  # Original orders
+    )
 
+    # Get the list of feature columns (for modeling later)
+    feature_cols = get_feature_columns(engineered_features)
 
 if __name__ == "__main__":
     main()
