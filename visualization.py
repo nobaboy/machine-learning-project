@@ -1,6 +1,7 @@
 import matplotlib.pyplot as plt
 import seaborn as sns
 from pandas import DataFrame
+import numpy as np
 
 sns.set_style("whitegrid")
 plt.rcParams['figure.figsize'] = (12, 6)
@@ -46,3 +47,59 @@ def analyze_and_visualize_missing(df: DataFrame) -> list[str] | None:
     plt.show()
 
     return missing[missing > 0].index.tolist()
+def plot_correlation_heatmap(corr_matrix, title="Correlation Heatmap", figsize=(12, 10)):
+    plt.figure(figsize=figsize)
+
+    # Create mask for upper triangle (optional)
+    mask = np.triu(np.ones_like(corr_matrix, dtype=bool))
+
+    sns.heatmap(corr_matrix,
+                mask=mask,
+                annot=True,
+                fmt=".2f",
+                cmap="coolwarm",
+                center=0,
+                square=True,
+                cbar_kws={"shrink": 0.8},
+                linewidths=0.5)
+
+    plt.title(title, fontsize=14, fontweight='bold')
+    plt.xticks(rotation=45, ha='right')
+    plt.yticks(rotation=0)
+    plt.tight_layout()
+    plt.show()
+
+
+def plot_top_correlations(high_corr_pairs, top_n=10):
+    if not high_corr_pairs:
+        print("No highly correlated pairs found")
+        return
+
+    # Sort by correlation
+    sorted_pairs = sorted(high_corr_pairs, key=lambda x: x[2], reverse=True)[:top_n]
+
+    # Prepare data
+    labels = [f"{p[0]}\n↔\n{p[1]}" for p in sorted_pairs]
+    correlations = [p[2] for p in sorted_pairs]
+
+    # Create bar chart
+    plt.figure(figsize=(12, 6))
+    bars = plt.bar(range(len(sorted_pairs)), correlations,
+                   color=['red' if corr > 0.9 else 'orange' if corr > 0.8 else 'yellow'
+                          for corr in correlations])
+
+    plt.title(f'Top {len(sorted_pairs)} Most Correlated Feature Pairs',
+              fontsize=14, fontweight='bold')
+    plt.xlabel('Feature Pairs', fontsize=12)
+    plt.ylabel('Correlation Coefficient', fontsize=12)
+    plt.xticks(range(len(sorted_pairs)), labels, rotation=45, ha='right')
+    plt.axhline(y=0.85, color='r', linestyle='--', alpha=0.5, label='Threshold (0.85)')
+
+    # Add correlation values on bars
+    for i, (bar, corr) in enumerate(zip(bars, correlations)):
+        plt.text(bar.get_x() + bar.get_width() / 2, bar.get_height() + 0.01,
+                 f'{corr:.3f}', ha='center', va='bottom', fontsize=9)
+
+    plt.legend()
+    plt.tight_layout()
+    plt.show()

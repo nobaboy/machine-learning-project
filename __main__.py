@@ -3,12 +3,14 @@ from pandas import DataFrame
 import matplotlib.pyplot as plt
 import seaborn as sns
 
-from utils import load_data, calculate_memory_usage, format_memory_size, optimize_memory_usage, imputerColumn , remove_outliers ,feature_scaling, features_engineering, get_feature_columns
-from visualization import visualize_memory_usage, analyze_and_visualize_missing
+from utils import load_data, calculate_memory_usage, format_memory_size, optimize_memory_usage, imputerColumn, \
+    remove_outliers, featuresEng, get_feature_names,feature_scaling,get_top_correlations,multicollinearity
+from visualization import visualize_memory_usage, analyze_and_visualize_missing,plot_top_correlations
 
 from sklearn.ensemble import RandomForestRegressor
 from sklearn.experimental import enable_iterative_imputer
-from sklearn.impute import IterativeImputer , SimpleImputer
+from sklearn.impute import IterativeImputer, SimpleImputer
+
 
 def main():
     datasets: dict[str, DataFrame] = {
@@ -21,7 +23,6 @@ def main():
     }
 
     # ----- Optimization -----
-
     mem_usage_before = calculate_memory_usage(*datasets.values())
 
     for name, dataset in datasets.items():
@@ -29,29 +30,16 @@ def main():
 
     mem_usage_after = calculate_memory_usage(*datasets.values())
     diff = 100 * (mem_usage_before - mem_usage_after) / mem_usage_before
-    print(f"\nReduced total memory usage from {format_memory_size(mem_usage_before)} to {format_memory_size(mem_usage_after)} ({diff:.1f}% reduction)")
+    print(
+        f"\nReduced total memory usage from {format_memory_size(mem_usage_before)} to {format_memory_size(mem_usage_after)} ({diff:.1f}% reduction)")
 
     # ----- Visualization -----
-
     visualize_memory_usage(mem_usage_before, mem_usage_after)
 
     aisles, departments, products = datasets["aisles"], datasets["departments"], datasets["products"]
     orders, prior, train = datasets["orders"], datasets["prior"], datasets["train"]
 
     print("\nMerging datasets...")
-
-    # prior_orders = prior.merge(
-    #     orders,
-    #     on="order_id"
-    # # )
-    #
-    #
-    # products_full = (
-        # products
-            # .merge(aisles, on="aisle_id")
-            # .merge(departments, on="department_id"
-    # )
-    # )
 
     # we use this for most of the eda we have to do
     data_full = (
@@ -63,8 +51,7 @@ def main():
             .merge(departments, on="department_id"),
             on="product_id"
         )
-    ) # final version
-
+    )  # final version
 
     missing_cols = analyze_and_visualize_missing(data_full)
 
@@ -76,7 +63,7 @@ def main():
     train = base_features.merge(
         train_user[["user_id", "product_id", "reordered"]],
         on=["user_id", "product_id"],
-        how="left", # keep all the pairs from prior
+        how="left",  # keep all the pairs from prior
     )
 
     # keeping all the pairs from prior introduces NaN values, which in python is a floating point number
@@ -84,71 +71,93 @@ def main():
     train["reordered"] = train["reordered"].fillna(0).astype("int8")
 
     # ----- Imputation -----
-
-    # TODO make this a for loop (even though it's only 1 column with missing values), or even better, replace it
-    #      with the preprocessing pipeline and provide missing_cols in the builder function
-
-    data_full = imputerColumn(data_full, "days_since_prior_order", "median") # we choose to remove Outliers over Treatment because we have a big amount of data so DELETE them don't make any damage
+    data_full = imputerColumn(data_full, "days_since_prior_order",
+                              "median")  # we choose to remove Outliers over Treatment because we have a big amount of data so DELETE them don't make any damage
 
     #  ----- Outlier Handling -----
-
     columns_to_check = ['days_since_prior_order', 'add_to_cart_order']
     # TODO the professor suggested winsorizing, check that out instead of removing outliers
     data_full = remove_outliers(data_full, columns_to_check)
 
-    # ----- Feature Scaling -----
+    # ----- Feature Engineering -----
 
-    # Apply scaling to data_full
-    data_full_scaled, scaler = feature_scaling(
-        data=data_full,
-        method='standard',  # or 'minmax'
-        columns_to_exclude=['order_id', 'user_id', 'product_id',
-                            'aisle_id', 'department_id', 'reordered']
+    print(" FEATURE ENGINEERING")
+
+    # Extract just prior data
+    prior_only = prior.merge(
+        orders[['order_id', 'user_id', 'order_number']],
+        on='order_id'
     )
 
-    # If you want to scale the data_train
-    train_scaled, _ = feature_scaling(
-        data=train,
-        method='standard',
-        columns_to_exclude=['user_id', 'product_id', 'reordered']
-    )
-    # ----- Feature Scaling -----
-
-    print("\nFeature scaling...")
-    # Apply scaling to data_full
-    data_full_scaled, scaler = feature_scaling(
-        data=data_full,
-        method='standard',  # or 'minmax'
-        columns_to_exclude=['order_id', 'user_id', 'product_id',
-                            'aisle_id', 'department_id', 'reordered']
+    # Create complete features
+    engineered_train = featuresEng(
+        prior_df=prior_only,
+        orders_df=orders,
+        train_df=train
     )
 
-    # If you want to scale the data_train
-    train_scaled, _ = feature_scaling(
-        data=train,
-        method='standard',
-        columns_to_exclude=['user_id', 'product_id', 'reordered']
-    )
+    # Get ALL feature names
+    feature_cols = get_feature_names(engineered_train)
 
+    print(f"\n Original features ({len(feature_cols)} total):")
+    for i, col in enumerate(feature_cols[:10], 1):  # Show first 10
+        print(f"{i:2}. {col}")
+    if len(feature_cols) > 10:
+        print(f"... and {len(feature_cols) - 10} more")
 
-    # ----- Misc. (just some info at the moment) -----
-
-    print(train_scaled.info())
+    # ========== FAST MULTICOLLINEARITY CHECK ==========
+    print("\n" + "=" * 50)
+    print("FAST MULTICOLLINEARITY CHECK")
     print("=" * 50)
-    print(data_full_scaled.info())
-    print(format_memory_size(calculate_memory_usage(train)))
-    print(format_memory_size(calculate_memory_usage(data_full)))
-    # ------ Features Engineering ------
 
-    # Use the simple feature engineering function
-    engineered_features = features_engineering(
-        data_full=data_full,  # Your merged dataset
-        train_data=train,  # Your training data
-        orders_data=datasets['orders']  # Original orders
+    # 1. Show top correlations (optional, for insight)
+    top_corrs = get_top_correlations(engineered_train, feature_cols, top_n=5)
+
+    # 2. Remove highly correlated features WITH VISUALIZATION
+    clean_features, removed_features, high_corr_pairs = multicollinearity(
+        df=engineered_train,
+        feature_cols=feature_cols,
+        corr_threshold=0.85,  # Remove if correlation > 0.85
+        sample_size=5000,  # Use 5k samples for speed
+        show_plot=True  # Show correlation heatmaps
     )
 
-    # Get the list of feature columns (for modeling later)
-    feature_cols = get_feature_columns(engineered_features)
+    # 3. Show bar chart of removed correlations
+    if high_corr_pairs:
+        print("\n📊 Visualization of removed correlations:")
+        plot_top_correlations(high_corr_pairs, top_n=min(10, len(high_corr_pairs)))
+
+    # Update feature list
+    feature_cols = clean_features
+
+    # ----- Scale the features -----
+    print("\n" + "=" * 50)
+    print("SCALING FEATURES")
+    print("=" * 50)
+
+    # Scale ONLY the clean features
+    engineered_train_scaled, scaler = feature_scaling(
+        data=engineered_train,
+        columns_to_exclude=['user_id', 'product_id', 'order_id', 'reordered'] + removed_features,
+    )
+
+    print(f"\n✅ Features engineered and scaled!")
+    print(f"Original features: {len(feature_cols) + len(removed_features)}")
+    print(f"Features after multicollinearity removal: {len(feature_cols)}")
+    print(f"Final dataset shape: {engineered_train_scaled.shape}")
+
+    # Ready for modeling
+    X = engineered_train_scaled[feature_cols]
+    y = engineered_train_scaled['reordered']
+
+    print(f"\n✅ Ready for modeling!")
+    print(f"X shape: {X.shape}")
+    print(f"y shape: {y.shape}")
+
+    # Show final features
+    print(f"\n🎯 Final features for modeling ({len(feature_cols)}):")
+    for i, col in enumerate(feature_cols, 1):
+        print(f"{i:2}. {col}")
 
 if __name__ == "__main__":
     main()
