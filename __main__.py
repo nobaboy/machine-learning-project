@@ -124,7 +124,7 @@ def main():
 
     # 3. Show bar chart of removed correlations
     if high_corr_pairs:
-        print("\n📊 Visualization of removed correlations:")
+        print("\n Visualization of removed correlations:")
         plot_top_correlations(high_corr_pairs, top_n=min(10, len(high_corr_pairs)))
 
     # Update feature list
@@ -141,21 +141,14 @@ def main():
         columns_to_exclude=['user_id', 'product_id', 'order_id', 'reordered'] + removed_features,
     )
 
-    print(f"\n✅ Features engineered and scaled!")
-    print(f"Original features: {len(feature_cols) + len(removed_features)}")
-    print(f"Features after multicollinearity removal: {len(feature_cols)}")
-    print(f"Final dataset shape: {engineered_train_scaled.shape}")
-
     # Ready for modeling
     X = engineered_train_scaled[feature_cols]
     y = engineered_train_scaled['reordered']
 
-    print(f"\n✅ Ready for modeling!")
-    print(f"X shape: {X.shape}")
-    print(f"y shape: {y.shape}")
+
 
     # Show final features
-    print(f"\n🎯 Final features for modeling ({len(feature_cols)}):")
+    print(f"\n Final features for modeling ({len(feature_cols)}):")
     for i, col in enumerate(feature_cols, 1):
         print(f"{i:2}. {col}")
 
