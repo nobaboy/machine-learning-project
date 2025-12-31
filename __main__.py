@@ -1,15 +1,16 @@
-import pandas as pd
 from pandas import DataFrame
-import matplotlib.pyplot as plt
-import seaborn as sns
 
-from utils import load_data, calculate_memory_usage, format_memory_size, optimize_memory_usage, imputerColumn, \
-    remove_outliers, featuresEng, get_feature_names,feature_scaling,get_top_correlations,multicollinearity
-from visualization import visualize_memory_usage, analyze_and_visualize_missing,plot_top_correlations
-
-from sklearn.ensemble import RandomForestRegressor
-from sklearn.experimental import enable_iterative_imputer
-from sklearn.impute import IterativeImputer, SimpleImputer
+from old_utils import (
+    remove_outliers,
+    featuresEng,
+    get_feature_names,
+    feature_scaling,
+    get_top_correlations,
+    multicollinearity,
+)
+from utils.loader import load_data, calculate_memory_usage, format_memory_size, optimize_memory_usage
+from utils.visualization import visualize_memory_usage, analyze_and_visualize_missing, plot_top_correlations
+from utils.preprocessing import impute_column
 
 
 def main():
@@ -23,17 +24,16 @@ def main():
     }
 
     # ----- Optimization -----
+
     mem_usage_before = calculate_memory_usage(*datasets.values())
 
     for name, dataset in datasets.items():
         optimize_memory_usage(name, dataset)
 
     mem_usage_after = calculate_memory_usage(*datasets.values())
-    diff = 100 * (mem_usage_before - mem_usage_after) / mem_usage_before
-    print(
-        f"\nReduced total memory usage from {format_memory_size(mem_usage_before)} to {format_memory_size(mem_usage_after)} ({diff:.1f}% reduction)")
+    pct = 100 * (mem_usage_before - mem_usage_after) / mem_usage_before
+    print(f"\nReduced total memory usage from {format_memory_size(mem_usage_before)} to {format_memory_size(mem_usage_after)} ({pct:.1f}% reduction)")
 
-    # ----- Visualization -----
     visualize_memory_usage(mem_usage_before, mem_usage_after)
 
     aisles, departments, products = datasets["aisles"], datasets["departments"], datasets["products"]
@@ -53,31 +53,39 @@ def main():
         )
     )  # final version
 
+    # ----- Imputation -----
+
     missing_cols = analyze_and_visualize_missing(data_full)
+
+    for col in missing_cols:
+        impute_column(data_full, col)
+
+    # ----- Outlier Handling -----
+
+    # TODO why these 2 columns only
+    columns_to_check = ['days_since_prior_order', 'add_to_cart_order']
+    # TODO the professor suggested winsorizing, check that out instead of removing outliers
+    data_full = remove_outliers(data_full, columns_to_check)
+
+    # TODO temporary return
+    return
+
+    # ----- Create train labels -----
 
     base_features = data_full[["user_id", "product_id"]].drop_duplicates()
 
     train_labels = train[["order_id", "product_id", "reordered"]]
     train_user = train_labels.merge(orders[["order_id", "user_id"]], on="order_id")
 
-    train = base_features.merge(
+    train_with_labels = base_features.merge(
         train_user[["user_id", "product_id", "reordered"]],
         on=["user_id", "product_id"],
-        how="left",  # keep all the pairs from prior
+        how="left", # keep all the pairs from prior
     )
 
     # keeping all the pairs from prior introduces NaN values, which in python is a floating point number
     # so fill those missing values with 0 and optimize the dtype again
-    train["reordered"] = train["reordered"].fillna(0).astype("int8")
-
-    # ----- Imputation -----
-    data_full = imputerColumn(data_full, "days_since_prior_order",
-                              "median")  # we choose to remove Outliers over Treatment because we have a big amount of data so DELETE them don't make any damage
-
-    #  ----- Outlier Handling -----
-    columns_to_check = ['days_since_prior_order', 'add_to_cart_order']
-    # TODO the professor suggested winsorizing, check that out instead of removing outliers
-    data_full = remove_outliers(data_full, columns_to_check)
+    train_with_labels["reordered"] = train["reordered"].fillna(0).astype("int8")
 
     # ----- Feature Engineering -----
 
@@ -93,7 +101,7 @@ def main():
     engineered_train = featuresEng(
         prior_df=prior_only,
         orders_df=orders,
-        train_df=train
+        train_df=train_with_labels,
     )
 
     # Get ALL feature names
@@ -119,7 +127,7 @@ def main():
         feature_cols=feature_cols,
         corr_threshold=0.85,  # Remove if correlation > 0.85
         sample_size=5000,  # Use 5k samples for speed
-        show_plot=True  # Show correlation heatmaps
+        visualize=True  # Show correlation heatmaps
     )
 
     # 3. Show bar chart of removed correlations
@@ -137,7 +145,7 @@ def main():
 
     # Scale ONLY the clean features
     engineered_train_scaled, scaler = feature_scaling(
-        data=engineered_train,
+        df=engineered_train,
         columns_to_exclude=['user_id', 'product_id', 'order_id', 'reordered'] + removed_features,
     )
 
@@ -145,12 +153,11 @@ def main():
     X = engineered_train_scaled[feature_cols]
     y = engineered_train_scaled['reordered']
 
-
-
     # Show final features
     print(f"\n Final features for modeling ({len(feature_cols)}):")
     for i, col in enumerate(feature_cols, 1):
         print(f"{i:2}. {col}")
+
 
 if __name__ == "__main__":
     main()
