@@ -57,6 +57,8 @@ def main():
 
     missing_cols = analyze_and_visualize_missing(data_full)
 
+    # TODO this imputes one column here, it being days_since_prior_order, imo it should be set to 0 rather than
+    #      median as it could be the *first* order for a user, which is why it's missing
     for col in missing_cols:
         impute_column(data_full, col)
 
