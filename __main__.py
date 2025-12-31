@@ -1,7 +1,6 @@
 from pandas import DataFrame
 
 from old_utils import (
-    remove_outliers,
     featuresEng,
     get_feature_names,
     feature_scaling,
@@ -10,7 +9,7 @@ from old_utils import (
 )
 from utils.loader import load_data, calculate_memory_usage, format_memory_size, optimize_memory_usage
 from utils.visualization import visualize_memory_usage, analyze_and_visualize_missing, plot_top_correlations
-from utils.preprocessing import impute_column
+from utils.preprocessing import impute_column, remove_outliers
 
 
 def main():
