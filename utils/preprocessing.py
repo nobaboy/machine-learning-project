@@ -5,6 +5,8 @@ from pandas import DataFrame
 from sklearn.ensemble import RandomForestRegressor
 from sklearn.impute import SimpleImputer
 
+from utils.visualization import visualize_outlier_removal
+
 
 # shut up pycharm, I know variables shouldn't start with capitals.
 # it's a matrix, and we do it like this.
@@ -77,3 +79,38 @@ def impute_column(
 
     missing_after = df[col].isna().sum()
     print(f"Missing values after imputation: {missing_after}")
+
+
+def remove_outliers(df: DataFrame, cols: list[str], plot: bool = True):
+    for col in cols:
+        if col not in df.columns or not pd.api.types.is_numeric_dtype(df[col]):
+            continue
+
+        print(f"\nProcessing: {col}")
+
+        # Statistics
+        before_count = len(df)
+        Q1 = df[col].quantile(0.25)
+        Q3 = df[col].quantile(0.75)
+        IQR = Q3 - Q1
+
+        if IQR == 0:
+            print(f"Skipping {col} since it has no variation")
+            continue
+
+        lower = Q1 - 1.5 * IQR
+        upper = Q3 + 1.5 * IQR
+
+        # Define what to keep and what to remove
+        mask_keep = (df[col] >= lower) & (df[col] <= upper)
+        outliers_count = (~mask_keep).sum()  # Count the inverse True outliers
+
+        if plot:
+            visualize_outlier_removal(df, col, mask_keep, outliers_count, before_count)
+
+        df = df[mask_keep].copy()
+
+        pct = 100 * outliers_count / before_count
+        print(f"Removed {outliers_count} outliers ({pct:.1f}%)")
+
+    return df

@@ -2,63 +2,10 @@ from typing import Literal
 
 import numpy as np
 import pandas as pd
-from matplotlib import pyplot as plt
 from pandas import DataFrame
 from sklearn.preprocessing import StandardScaler, MinMaxScaler
 
 from utils.visualization import plot_correlation_heatmap
-
-
-def remove_outliers(df: DataFrame, cols: list[str]):
-    for col in cols:
-        if col not in df.columns or not pd.api.types.is_numeric_dtype(df[col]):
-            continue
-
-        print(f"\nProcessing: {col}")
-
-        # Statistics
-        before_count = len(df)
-        Q1 = df[col].quantile(0.25)
-        Q3 = df[col].quantile(0.75)
-        IQR = Q3 - Q1
-
-        if IQR > 0:
-            lower = Q1 - 1.5 * IQR
-            upper = Q3 + 1.5 * IQR
-
-            # Define what to keep and what to remove
-            mask_keep = (df[col] >= lower) & (df[col] <= upper)
-            outliers_count = (~mask_keep).sum()  # Count the inverse True outliers
-
-            fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 4))
-
-            ax1.ticklabel_format(style='sci', axis='y', scilimits=(6, 6))
-            ax2.ticklabel_format(style='sci', axis='y', scilimits=(6, 6))
-
-            # Before plot
-            ax1.hist(df[col], bins=30, alpha=0.6, color='red', label='Outliers included')
-            ax1.set_title(f'BEFORE: {col}')
-            ax1.set_xlabel(col)
-            ax1.set_ylabel('Frequency')
-            ax1.legend()
-
-            # After plot
-            ax2.hist(df[mask_keep][col], bins=30, alpha=0.6, color='green', label='Outliers removed')
-            ax2.set_title(f'AFTER: {col}')
-            ax2.set_xlabel(col)
-            ax2.set_ylabel('Frequency')
-            ax2.legend()
-
-            plt.suptitle(
-                f'Outlier Removal: {col}\nRemoved {outliers_count} outliers ({outliers_count / before_count * 100:.1f}%)')
-            plt.show()
-
-            # Apply filter
-            df = df[mask_keep].copy()
-
-            print(f"   Removed: {outliers_count} outliers ({outliers_count / before_count * 100:.1f}%)")
-
-    return df
 
 
 # FIXME doesn't scale engineered features
@@ -175,7 +122,7 @@ def multicollinearity(
     feature_cols: list,
     corr_threshold: float = 0.85,
     sample_size: int = 10000,
-    visualize: bool = True,
+    plot: bool = True,
 ):
     print(f"Checking multicollinearity for {len(feature_cols)} features ")
 
@@ -184,7 +131,7 @@ def multicollinearity(
     corr_matrix = df[feature_cols].corr().abs()
 
     # Create visualization BEFORE removing features
-    if visualize and len(feature_cols) > 1:
+    if plot and len(feature_cols) > 1:
         plot_correlation_heatmap(corr_matrix, title="Feature Correlation Heatmap (Before Remove)")
 
     # Find highly correlated pairs
@@ -215,7 +162,7 @@ def multicollinearity(
     features_to_keep = [col for col in feature_cols if col not in features_to_remove]
 
     # Create visualization AFTER removing features
-    if visualize and len(features_to_keep) > 1 and len(features_to_keep) <= 20:
+    if plot and len(features_to_keep) > 1 and len(features_to_keep) <= 20:
         remaining_corr = df[features_to_keep].corr().abs()
         plot_correlation_heatmap(remaining_corr,
                                  title="Feature Correlation Heatmap After Remove",

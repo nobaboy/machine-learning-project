@@ -127,7 +127,7 @@ def main():
         feature_cols=feature_cols,
         corr_threshold=0.85,  # Remove if correlation > 0.85
         sample_size=5000,  # Use 5k samples for speed
-        visualize=True  # Show correlation heatmaps
+        plot=True  # Show correlation heatmaps
     )
 
     # 3. Show bar chart of removed correlations

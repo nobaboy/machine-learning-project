@@ -49,6 +49,30 @@ def analyze_and_visualize_missing(df: DataFrame) -> list[str] | None:
     return missing[missing > 0].index.tolist()
 
 
+def visualize_outlier_removal(
+    df: DataFrame,
+    col: str,
+    mask_keep: Series,
+    outliers_count: int,
+    before_count: int
+):
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 4))
+
+    sns.histplot(df[col], bins=30, color="red", alpha=0.6, ax=ax1)
+    ax1.set_title("Before")
+    ax1.set_xlabel(col)
+
+    # After
+    sns.histplot(df[mask_keep][col], bins=30, color="green", alpha=0.6, ax=ax2)
+    ax2.set_title("After")
+    ax2.set_xlabel(col)
+
+    pct = 100 * outliers_count / before_count
+    plt.suptitle(f"Outlier Removal: {col}\nRemoved {outliers_count:,} outliers ({pct:.1f}%)")
+    plt.tight_layout()
+    plt.show()
+
+
 # TODO cleanup
 def plot_correlation_heatmap(corr_matrix, title="Correlation Heatmap", figsize=(12, 10)):
     plt.figure(figsize=figsize)
