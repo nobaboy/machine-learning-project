@@ -1,15 +1,14 @@
 from pandas import DataFrame
 
 from old_utils import (
-    featuresEng,
     get_feature_names,
-    feature_scaling,
     get_top_correlations,
     multicollinearity,
 )
+from utils.feature import create_features
 from utils.loader import load_data, calculate_memory_usage, format_memory_size, optimize_memory_usage
 from utils.visualization import visualize_memory_usage, analyze_and_visualize_missing, plot_top_correlations
-from utils.preprocessing import impute_column, remove_outliers
+from utils.preprocessing import impute_column, remove_outliers, scale_features
 
 
 def main():
@@ -56,17 +55,17 @@ def main():
 
     missing_cols = analyze_and_visualize_missing(data_full)
 
-    # TODO this imputes one column here, it being days_since_prior_order, imo it should be set to 0 rather than
-    #      median as it could be the *first* order for a user, which is why it's missing
     for col in missing_cols:
-        impute_column(data_full, col)
+        if col == "days_since_prior_order":
+            data_full = impute_column(data_full, col, strategy="sentinel", fill_value=0)
+        else:
+            data_full = impute_column(data_full, col) # median
 
     # ----- Outlier Handling -----
 
-    # TODO why these 2 columns only
-    columns_to_check = ['days_since_prior_order', 'add_to_cart_order']
+    cols_to_check = ["days_since_prior_order", "add_to_cart_order"]
     # TODO the professor suggested winsorizing, check that out instead of removing outliers
-    data_full = remove_outliers(data_full, columns_to_check)
+    data_full = remove_outliers(data_full, cols_to_check)
 
     # ----- Create train labels -----
 
@@ -83,34 +82,28 @@ def main():
 
     # keeping all the pairs from prior introduces NaN values, which in python is a floating point number
     # so fill those missing values with 0 and optimize the dtype again
-    train_with_labels["reordered"] = train["reordered"].fillna(0).astype("int8")
-
-    # TODO temporary return
-    return
+    train_with_labels["reordered"] = train_with_labels["reordered"].fillna(0).astype("int8")
 
     # ----- Feature Engineering -----
 
-    print(" FEATURE ENGINEERING")
-
-    # Extract just prior data
-    prior_only = prior.merge(
-        orders[['order_id', 'user_id', 'order_number']],
-        on='order_id'
+    prior_orders = prior.merge(
+        orders[["order_id", "user_id", "order_number"]],
+        on="order_id",
+        how="left",
     )
 
-    # Create complete features
-    engineered_train = featuresEng(
-        prior_df=prior_only,
-        orders_df=orders,
-        train_df=train_with_labels,
+    engineered_train = create_features(
+        prior=prior_orders,
+        orders=orders,
+        train_pairs=train_with_labels[["user_id", "product_id", "reordered"]],
     )
 
     # Get ALL feature names
     feature_cols = get_feature_names(engineered_train)
 
-    print(f"\n Original features ({len(feature_cols)} total):")
+    print(f"\nOriginal features ({len(feature_cols)} total):")
     for i, col in enumerate(feature_cols[:10], 1):  # Show first 10
-        print(f"{i:2}. {col}")
+        print(f"{i:>2}. {col}")
     if len(feature_cols) > 10:
         print(f"... and {len(feature_cols) - 10} more")
 
@@ -145,9 +138,9 @@ def main():
     print("=" * 50)
 
     # Scale ONLY the clean features
-    engineered_train_scaled, scaler = feature_scaling(
+    engineered_train_scaled, scaler = scale_features(
         df=engineered_train,
-        columns_to_exclude=['user_id', 'product_id', 'order_id', 'reordered'] + removed_features,
+        excluded_columns=['user_id', 'product_id', 'order_id', 'reordered'] + removed_features,
     )
 
     # Ready for modeling

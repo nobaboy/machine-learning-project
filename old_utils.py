@@ -1,118 +1,15 @@
-from typing import Literal
-
-import numpy as np
-import pandas as pd
 from pandas import DataFrame
-from sklearn.preprocessing import StandardScaler, MinMaxScaler
 
 from utils.visualization import plot_correlation_heatmap
-
-
-# FIXME doesn't scale engineered features
-def feature_scaling(
-    df: DataFrame,
-    columns_to_exclude: list[str],
-    method: Literal["standard", "minmax"] = "minmax",
-):
-    # Select numeric columns
-    numeric_cols = df.select_dtypes(
-        include=['int16', 'int32', 'int8', 'float16', 'float32', 'float64']
-    ).columns
-
-    # Filter out excluded columns
-    columns_to_scale = [col for col in numeric_cols if col not in columns_to_exclude]
-
-    # TODO when u see this comment : there's an logic
-    if len(columns_to_scale) == 0:
-        print("No columns to scale Check your data types or exclusion list")
-        return df, None
-
-    print(f"\nScaling {len(columns_to_scale)} numeric columns: ")
-    print(f"Columns to scale: {columns_to_scale}")
-
-    scaler = None # We Initialize SCALER here for the else
-    # Choose scaler based on method
-    if method == 'standard':
-        scaler = StandardScaler() # I'm using Logistic Regression and SVM work better with StandardScaler
-    elif method == 'minmax':
-        scaler = MinMaxScaler() # K-Nearest Neighbors KNN - distance based
-    else:
-        print("method must be 'standard' or 'minmax'")
-
-    # Apply scaling
-    df[columns_to_scale] = scaler.fit_transform(df[columns_to_scale])
-
-    return df, scaler
-
-
-def featuresEng(prior_df, orders_df, train_df):
-    print("Creating complete features from PRIOR data: ")
-
-    # 1. USER Feature (from prior)
-    print("1. User features:")
-    user_features = prior_df.groupby('user_id').agg(
-        user_total_orders=('order_id', 'nunique'),
-        user_total_items=('product_id', 'count'),
-        user_reorder_rate=('reordered', 'mean')
-    ).reset_index()
-
-    # 2. Prodect Feature (from prior)
-    print("2. Product features: ")
-    product_features = prior_df.groupby('product_id').agg(
-        product_orders=('order_id', 'nunique'),
-        product_users=('user_id', 'nunique')
-    ).reset_index()
-
-    # 3. User-Product Feature from prior
-    print("3. User-product features: ")
-    up_features = prior_df.groupby(['user_id', 'product_id']).agg(
-        up_count=('order_id', 'count'),
-        up_last_order=('order_number', 'max')
-    ).reset_index()
-
-    # 4. Time Feature from orders
-    print("4. Time features: ")
-    # First get order_id for train data
-    train_with_order_id = train_df.copy()
-
-    time_features = orders_df[['order_id', 'order_dow', 'order_hour_of_day']].copy()
-    time_features.columns = ['order_id', 'order_day', 'order_hour']
-
-    # 5. Merge all with Train
-    print("5. Merging with train...")
-    features = train_with_order_id.copy()
-
-    # Merge each feature set
-    features = features.merge(user_features, on='user_id', how='left')
-    features = features.merge(product_features, on='product_id', how='left')
-    features = features.merge(up_features, on=['user_id', 'product_id'], how='left')
-
-    # Only merge time features if we have order_id
-    if 'order_id' in features.columns:
-        features = features.merge(time_features, on='order_id', how='left')
-
-    # 7. Add Non-Linear Features
-    print("7. Adding non-linear features: ")
-
-    features['orders_x_count'] = features['user_total_orders'] * features['up_count']
-    features['log_up_count'] = np.log1p(features['up_count'])
-
-    # Add one more interaction feature
-    features['user_orders_x_product_orders'] = features['user_total_orders'] * features['product_orders']
-
-    print(f" Created {features.shape[1] - 4} features total")
-    print(f" Shape: {features.shape}")
-
-    return features
 
 
 def get_feature_names(df):
     exclude_cols = ['user_id', 'product_id', 'order_id', 'reordered']
     feature_cols = [col for col in df.columns if col not in exclude_cols]
 
-    print(f"\n Feature columns ({len(feature_cols)} total):")
+    print(f"\nFeature columns ({len(feature_cols)} total):")
     for col in feature_cols:
-        print(f"  - {col}")
+        print(f" - {col}")
 
     return feature_cols
 
@@ -164,9 +61,11 @@ def multicollinearity(
     # Create visualization AFTER removing features
     if plot and len(features_to_keep) > 1 and len(features_to_keep) <= 20:
         remaining_corr = df[features_to_keep].corr().abs()
-        plot_correlation_heatmap(remaining_corr,
-                                 title="Feature Correlation Heatmap After Remove",
-                                 figsize=(10, 8))
+        plot_correlation_heatmap(
+            remaining_corr,
+            title="Feature Correlation Heatmap After Remove",
+            figsize=(10, 8),
+        )
 
     if features_to_remove:
         print(f"\n Removed features: {list(features_to_remove)}")

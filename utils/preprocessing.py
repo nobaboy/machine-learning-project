@@ -1,11 +1,19 @@
 from typing import Literal
 
 import numpy as np
+import pandas as pd
 from pandas import DataFrame
 from sklearn.ensemble import RandomForestRegressor
 from sklearn.impute import SimpleImputer
+from sklearn.preprocessing import StandardScaler, MinMaxScaler
 
 from utils.visualization import visualize_outlier_removal
+
+__all__ = (
+    "impute_column",
+    "remove_outliers",
+    "scale_features",
+)
 
 
 # shut up pycharm, I know variables shouldn't start with capitals.
@@ -20,10 +28,10 @@ def impute_column(
     df = df.copy()
 
     if col not in df.columns:
-        print(f"Column {col} not found")
+        print(f"\nColumn {col} not found") # TODO better message
         return df
 
-    print(f"Imputing '{col}' using {strategy}")
+    print(f"\nImputing '{col}' using {strategy}")
 
     missing_before = df[col].isna().sum()
     print(f"Missing values before imputation: {missing_before}")
@@ -77,7 +85,7 @@ def impute_column(
         df[col][mask_missing] = rf.predict(X_missing)
 
     else:
-        print(f"Unknown strategy: {strategy}")
+        print(f"Unexpected strategy: {strategy}")
         return df
 
     missing_after = df[col].isna().sum()
@@ -121,3 +129,31 @@ def remove_outliers(df: DataFrame, cols: list[str], plot: bool = True):
         print(f"Removed {outliers_count} outliers ({pct:.1f}%)")
 
     return df
+
+
+def scale_features(
+    df: DataFrame,
+    excluded_columns: list[str],
+    method: Literal["standard", "minmax"] = "minmax",
+):
+    # just use number here to also scale the new engineered features since their dtypes
+    # aren't the optimized variant
+    numeric_cols = df.select_dtypes(include=[np.number]).columns
+    cols_to_scale = [col for col in numeric_cols if col not in excluded_columns]
+
+    if not cols_to_scale:
+        return df, None
+
+    print(f"\nScaling {len(cols_to_scale)} numeric columns: ")
+    print(f"Columns to scale: {cols_to_scale}")
+
+    if method == "standard":
+        scaler = StandardScaler() # I'm using Logistic Regression and SVM work better with StandardScaler
+    elif method == "minmax":
+        scaler = MinMaxScaler() # K-Nearest Neighbors KNN - distance based
+    else:
+        print(f"Unexpected method: {method}")
+        return df, None
+
+    df[cols_to_scale] = scaler.fit_transform(df[cols_to_scale])
+    return df, scaler
