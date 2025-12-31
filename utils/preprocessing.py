@@ -17,9 +17,11 @@ def impute_column(
     strategy: Literal["mean", "median", "most_frequent", "sentinel", "model"] = "median",
     **kwargs,
 ):
+    df = df.copy()
+
     if col not in df.columns:
         print(f"Column {col} not found")
-        return
+        return df
 
     print(f"Imputing '{col}' using {strategy}")
 
@@ -51,15 +53,15 @@ def impute_column(
         feature_cols = [c for c in numeric_cols if c != col]
 
         if not feature_cols:
-            print("No other numeric columns to impute")
-            return
+            print("Data has no numeric columns to impute")
+            return df
 
         mask_missing = df[col].isna()
         mask_exist = ~mask_missing
 
         if mask_missing.sum() == 0:
             print(f"{col} has no missing values")
-            return
+            return df
 
         X_train = df[feature_cols][mask_exist]
         y_train = df[col][mask_exist]
@@ -76,12 +78,17 @@ def impute_column(
 
     else:
         print(f"Unknown strategy: {strategy}")
+        return df
 
     missing_after = df[col].isna().sum()
     print(f"Missing values after imputation: {missing_after}")
 
+    return df
+
 
 def remove_outliers(df: DataFrame, cols: list[str], plot: bool = True):
+    df = df.copy()
+
     for col in cols:
         if col not in df.columns or not pd.api.types.is_numeric_dtype(df[col]):
             continue

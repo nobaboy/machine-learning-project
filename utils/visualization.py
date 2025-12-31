@@ -9,7 +9,9 @@ plt.rcParams["figure.figsize"] = (12, 6)
 
 def visualize_memory_usage(before: int, after: int):
     labels = ["Before", "After"]
-    sizes = [before / (1024 ** 2), after / (1024 ** 2)] # convert each size to mib since we have it in bytes
+
+    # convert each size to mib since we have it in bytes
+    sizes = np.array([before, after]) / 1024 ** 2
 
     plt.figure(figsize=(8, 5))
     axes = sns.barplot(x=labels, y=sizes, hue=labels, palette="viridis")

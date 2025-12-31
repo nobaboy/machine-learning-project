@@ -68,9 +68,6 @@ def main():
     # TODO the professor suggested winsorizing, check that out instead of removing outliers
     data_full = remove_outliers(data_full, columns_to_check)
 
-    # TODO temporary return
-    return
-
     # ----- Create train labels -----
 
     base_features = data_full[["user_id", "product_id"]].drop_duplicates()
@@ -87,6 +84,9 @@ def main():
     # keeping all the pairs from prior introduces NaN values, which in python is a floating point number
     # so fill those missing values with 0 and optimize the dtype again
     train_with_labels["reordered"] = train["reordered"].fillna(0).astype("int8")
+
+    # TODO temporary return
+    return
 
     # ----- Feature Engineering -----
 
