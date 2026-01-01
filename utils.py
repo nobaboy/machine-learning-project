@@ -3,18 +3,26 @@ import pandas as pd
 from pandas import DataFrame
 from sklearn.ensemble import RandomForestRegressor
 from sklearn.experimental import enable_iterative_imputer
-from sklearn.impute import IterativeImputer , SimpleImputer
-import matplotlib.pyplot as plt
+from sklearn.impute import IterativeImputer, SimpleImputer
 from sklearn.preprocessing import StandardScaler, MinMaxScaler
-from statsmodels.stats.outliers_influence import variance_inflation_factor
+import matplotlib.pyplot as plt
 import seaborn as sns
-from visualization import plot_correlation_heatmap
+
 __all__ = (
     "load_data",
     "calculate_memory_usage",
     "format_memory_size",
     "optimize_memory_usage",
+    "imputerColumn",
+    "remove_outliers",
+    "featuresEng",
+    "get_feature_names",
+    "feature_scaling",
+    "get_top_correlations",
+    "multicollinearity"
 )
+
+# ---------------------------- Basic Utilities ----------------------------
 
 def load_data(path: str) -> DataFrame:
     df = pd.read_csv(path, engine="pyarrow")
@@ -22,333 +30,247 @@ def load_data(path: str) -> DataFrame:
     print(f"Loaded '{path}' ({format_memory_size(mem_usage)})")
     return df
 
-
 def calculate_memory_usage(*dfs: DataFrame) -> int:
     return sum(df.memory_usage().sum() for df in dfs)
 
-
-# TODO move out sizes into consts
 def format_memory_size(size: int) -> str:
     if size < 1024:
         return f"{size:.0f} B"
-    if size < 1024 ** 2:
-        return f"{size / 1024:.2f} KiB"
-    return f"{size / 1024 ** 2:.2f} MiB"
-
+    if size < 1024**2:
+        return f"{size/1024:.2f} KiB"
+    return f"{size/1024**2:.2f} MiB"
 
 def optimize_memory_usage(name: str, df: DataFrame):
     before = calculate_memory_usage(df)
-
     for col in df.columns:
         col_dtype = df[col].dtype
 
         if pd.api.types.is_integer_dtype(col_dtype):
-            col_min = df[col].min()
-            col_max = df[col].max()
-
-            if col_min > np.iinfo(np.int8).min and col_max < np.iinfo(np.int8).max:
+            col_min, col_max = df[col].min(), df[col].max()
+            if np.iinfo(np.int8).min <= col_min and col_max <= np.iinfo(np.int8).max:
                 df[col] = df[col].astype(np.int8)
-            elif col_min > np.iinfo(np.int16).min and col_max < np.iinfo(np.int16).max:
+            elif np.iinfo(np.int16).min <= col_min and col_max <= np.iinfo(np.int16).max:
                 df[col] = df[col].astype(np.int16)
-            elif col_min > np.iinfo(np.int32).min and col_max < np.iinfo(np.int32).max:
+            elif np.iinfo(np.int32).min <= col_min and col_max <= np.iinfo(np.int32).max:
                 df[col] = df[col].astype(np.int32)
 
         elif pd.api.types.is_float_dtype(col_dtype):
             df[col] = df[col].astype(np.float32)
 
         elif col_dtype == object:
-            unique = len(df[col].unique())
-            total = len(df[col])
-
-            # we only want to convert high cardinality columns (e.g. eval_set from orders dataset)
-            if unique / total < 0.5:
+            if df[col].nunique() / len(df[col]) < 0.5:
                 df[col] = df[col].astype("category")
 
     after = calculate_memory_usage(df)
-    diff = 100 * (before - after) / before
-    print(f"Reduced memory usage of '{name}' from {format_memory_size(before)} to {format_memory_size(after)} ({diff:.1f}% reduction)")
+    print(f"Reduced memory usage of '{name}' from {format_memory_size(before)} to {format_memory_size(after)} "
+          f"({100*(before-before)/before:.1f}% reduction)")
 
+# ---------------------------- Imputation ----------------------------
 
 def imputerColumn(data: DataFrame, column: str, strategy: str, **kwargs):
     if column not in data.columns:
         print(f"Column {column} not found")
         return data
 
-    print(f"Imputing column {column} with strategy {strategy}")
-
     missing_before = data[column].isna().sum()
-    print(f"Missing values before: {missing_before}")
+    print(f"Imputing {column} using {strategy} (missing={missing_before})")
 
-    # --------Simple strategies---------
     if strategy in ["median", "mean", "most_frequent"]:
         imputer = SimpleImputer(strategy=strategy)
         data[[column]] = imputer.fit_transform(data[[column]])
 
-    # -------- Sentinel-------
     elif strategy == "sentinel":
-        if np.issubdtype(data[column].dtype, np.integer):
-            sentinel = kwargs.get("fill_value", -999)
-        elif np.issubdtype(data[column].dtype, np.floating):
-            sentinel = kwargs.get("fill_value", -999.0)
-        else:
-            sentinel = kwargs.get("fill_value", "MISSING")
-        data[column] = data[column].fillna(sentinel)
+        fill_value = kwargs.get("fill_value", -999 if np.issubdtype(data[column].dtype, np.number) else "MISSING")
+        data[column] = data[column].fillna(fill_value)
 
-    # --------Iterative Model-Based--------
     elif strategy == "iterative":
-        numCol = data.select_dtypes(include=[np.number]).columns
-
-        iterative_imputer = IterativeImputer(
-            estimator=RandomForestRegressor(
-                n_estimators=kwargs.get("n_estimators", 50),
+        num_cols = [column] if np.issubdtype(data[column].dtype, np.number) else []
+        if num_cols:
+            iterative_imputer = IterativeImputer(
+                estimator=RandomForestRegressor(
+                    n_estimators=kwargs.get("n_estimators",50),
+                    random_state=42
+                ),
+                max_iter=kwargs.get("max_iter",10),
                 random_state=42
-            ),
-            max_iter=kwargs.get("max_iter", 10),
-            random_state=42
-        )
-        data[numCol] = iterative_imputer.fit_transform(data[numCol])
-
+            )
+            data[num_cols] = iterative_imputer.fit_transform(data[num_cols])
     else:
         print(f"Unknown strategy: {strategy}")
-        return data
 
     missing_after = data[column].isna().sum()
-    print(f"Missing values after: {missing_after}")
-
+    print(f"Missing after imputation: {missing_after}")
     return data
 
+# ---------------------------- Outlier Removal ----------------------------
 
 def remove_outliers(df: DataFrame, cols: list[str]):
+    filtered_df = df.copy()
     for col in cols:
-        if col not in df.columns or not pd.api.types.is_numeric_dtype(df[col]):
+        if col not in filtered_df.columns or not pd.api.types.is_numeric_dtype(filtered_df[col]):
             continue
 
-        print(f"\nProcessing: {col}")
-
-        # Statistics
-        before_count = len(df)
-        Q1 = df[col].quantile(0.25)
-        Q3 = df[col].quantile(0.75)
+        Q1, Q3 = filtered_df[col].quantile([0.25, 0.75])
         IQR = Q3 - Q1
+        if IQR == 0:
+            continue
 
-        if IQR > 0:
-            lower = Q1 - 1.5 * IQR
-            upper = Q3 + 1.5 * IQR
+        lower, upper = Q1 - 1.5*IQR, Q3 + 1.5*IQR
+        mask_keep = (filtered_df[col] >= lower) & (filtered_df[col] <= upper)
+        outliers_count = (~mask_keep).sum()
 
-            # Define what to keep and what to remove
-            mask_keep = (df[col] >= lower) & (df[col] <= upper)
-            outliers_count = (~mask_keep).sum()  # Count the inverse True outliers
+        print(f"{col}: removed {outliers_count} outliers ({outliers_count/len(filtered_df)*100:.2f}%)")
+        filtered_df = filtered_df[mask_keep].copy()
 
-            fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 4))
+        # Optional plot
+        fig, (ax1, ax2) = plt.subplots(1,2,figsize=(12,4))
+        ax1.hist(df[col], bins=30, color='red', alpha=0.6)
+        ax1.set_title(f'Before: {col}')
+        ax2.hist(filtered_df[col], bins=30, color='green', alpha=0.6)
+        ax2.set_title(f'After: {col}')
+        plt.show()
 
-            ax1.ticklabel_format(style='sci', axis='y', scilimits=(6, 6))
-            ax2.ticklabel_format(style='sci', axis='y', scilimits=(6, 6))
+    return filtered_df
 
-            # Before plot
-            ax1.hist(df[col], bins=30, alpha=0.6, color='red', label='Outliers included')
-            ax1.set_title(f'BEFORE: {col}')
-            ax1.set_xlabel(col)
-            ax1.set_ylabel('Frequency')
-            ax1.legend()
-
-            # After plot
-            ax2.hist(df[mask_keep][col], bins=30, alpha=0.6, color='green', label='Outliers removed')
-            ax2.set_title(f'AFTER: {col}')
-            ax2.set_xlabel(col)
-            ax2.set_ylabel('Frequency')
-            ax2.legend()
-
-            plt.suptitle(
-                f'Outlier Removal: {col}\nRemoved {outliers_count} outliers ({outliers_count / before_count * 100:.1f}%)')
-            plt.show()
-
-            # Apply filter
-            df = df[mask_keep].copy()
-
-            print(f"   Removed: {outliers_count} outliers ({outliers_count / before_count * 100:.1f}%)")
-
-    return df
-
-def feature_scaling(data: DataFrame, columns_to_exclude: list[str] , method :str = "minmax"):
-    method = input("What do u wanna use (standard or MinMax? )").lower()
-    # Select numeric columns
-    numeric_cols = data.select_dtypes(
-        include=['int16', 'int32', 'int8', 'float16', 'float32', 'float64']
-    ).columns
-
-    # Filter out excluded columns
-    columns_to_scale = [col for col in numeric_cols if col not in columns_to_exclude]
-
-    # TODO when u see this comment : there's an logic
-    if len(columns_to_scale) == 0:
-        print("No columns to scale Check your data types or exclusion list")
-        return data, None
-
-    print(f"\nScaling {len(columns_to_scale)} numeric columns: ")
-    print(f"Columns to scale: {columns_to_scale}")
-
-    scaler = None # We Initialize SCALER here for the else
-    # Choose scaler based on method
-    if method == 'standard':
-        scaler = StandardScaler() # I'm using Logistic Regression and SVM work better with StandardScaler
-    elif method == 'minmax':
-        scaler = MinMaxScaler() # K-Nearest Neighbors KNN - distance based
-    else:
-        print("method must be 'standard' or 'minmax'")
-
-    # Apply scaling
-    data[columns_to_scale] = scaler.fit_transform(data[columns_to_scale])
-
-    return data, scaler
-
+# ---------------------------- Feature Engineering ----------------------------
 
 def featuresEng(prior_df, orders_df, train_df):
+    print("Creating features from PRIOR data")
 
-    print("Creating complete features from PRIOR data: ")
-
-    # 1. USER Feature (from prior)
-    print("1. User features:")
     user_features = prior_df.groupby('user_id').agg(
-        user_total_orders=('order_id', 'nunique'),
-        user_total_items=('product_id', 'count'),
-        user_reorder_rate=('reordered', 'mean')
+        user_total_orders=('order_id','nunique'),
+        user_total_items=('product_id','count'),
+        user_reorder_rate=('reordered','mean')
     ).reset_index()
 
-    # 2. Prodect Feature (from prior)
-    print("2. Product features: ")
     product_features = prior_df.groupby('product_id').agg(
-        product_orders=('order_id', 'nunique'),
-        product_users=('user_id', 'nunique')
+        product_orders=('order_id','nunique'),
+        product_users=('user_id','nunique')
     ).reset_index()
 
-    # 3. User-Product Feature from prior
-    print("3. User-product features: ")
-    up_features = prior_df.groupby(['user_id', 'product_id']).agg(
-        up_count=('order_id', 'count'),
-        up_last_order=('order_number', 'max')
+    up_features = prior_df.groupby(['user_id','product_id']).agg(
+        up_count=('order_id','count'),
+        up_last_order=('order_number','max')
     ).reset_index()
 
-    # 4. Time Feature from orders
-    print("4. Time features: ")
-    # First get order_id for train data
-    train_with_order_id = train_df.copy()
+    time_features = orders_df[['order_id','order_dow','order_hour_of_day']].copy()
+    time_features.columns = ['order_id','order_day','order_hour']
 
-    time_features = orders_df[['order_id', 'order_dow', 'order_hour_of_day']].copy()
-    time_features.columns = ['order_id', 'order_day', 'order_hour']
-
-    # 5. Merge all with Train
-    print("5. Merging with train...")
-    features = train_with_order_id.copy()
-
-    # Merge each feature set
+    features = train_df.copy()
     features = features.merge(user_features, on='user_id', how='left')
     features = features.merge(product_features, on='product_id', how='left')
-    features = features.merge(up_features, on=['user_id', 'product_id'], how='left')
-
-    # Only merge time features if we have order_id
+    features = features.merge(up_features, on=['user_id','product_id'], how='left')
     if 'order_id' in features.columns:
         features = features.merge(time_features, on='order_id', how='left')
 
-    # 7. Add Non-Linear Features
-    print("7. Adding non-linear features: ")
-    import numpy as np
-
+    # Non-linear features
     features['orders_x_count'] = features['user_total_orders'] * features['up_count']
     features['log_up_count'] = np.log1p(features['up_count'])
-
-    # Add one more interaction feature
     features['user_orders_x_product_orders'] = features['user_total_orders'] * features['product_orders']
 
-    print(f" Created {features.shape[1] - 4} features total")
-    print(f" Shape: {features.shape}")
-
+    print(f"Created {features.shape[1]-4} features total, shape: {features.shape}")
     return features
 
+# ---------------------------- Feature Helpers ----------------------------
 
 def get_feature_names(df):
-    exclude_cols = ['user_id', 'product_id', 'order_id', 'reordered']
-    feature_cols = [col for col in df.columns if col not in exclude_cols]
-
-    print(f"\n Feature columns ({len(feature_cols)} total):")
-    for col in feature_cols:
-        print(f"  - {col}")
-
+    exclude_cols = ['user_id','product_id','order_id','reordered']
+    feature_cols = [c for c in df.columns if c not in exclude_cols]
+    print(f"Feature columns ({len(feature_cols)} total): {feature_cols}")
     return feature_cols
 
-def multicollinearity(df: DataFrame, feature_cols: list,
-                                 corr_threshold: float = 0.85,
-                                 sample_size: int = 10000,
-                                 show_plot: bool = True):
+def feature_scaling(data: DataFrame, columns_to_scale: list[str], method='standard', scaler=None, fit=True):
+    if method=='standard':
+        scaler = scaler or StandardScaler()
+    elif method=='minmax':
+        scaler = scaler or MinMaxScaler()
+    else:
+        raise ValueError("method must be 'standard' or 'minmax'")
 
-    print(f"Checking multicollinearity for {len(feature_cols)} features ")
+    if fit:
+        data[columns_to_scale] = scaler.fit_transform(data[columns_to_scale])
+    else:
+        data[columns_to_scale] = scaler.transform(data[columns_to_scale])
+    return data, scaler
 
+
+def multicollinearity(df, feature_cols, corr_threshold=0.85, sample_size=5000, show_plot=False):
+    """
+    Remove highly correlated features to reduce multicollinearity
+    """
+    # Sample data for speed if dataset is large
+    if len(df) > sample_size:
+        df_sample = df.sample(sample_size, random_state=42)
+    else:
+        df_sample = df
 
     # Calculate correlation matrix
-    print("Calculating correlation matrix: ")
-    corr_matrix = df[feature_cols].corr().abs()
+    corr_matrix = df_sample[feature_cols].corr().abs()
 
-    # Create visualization BEFORE removing features
-    if show_plot and len(feature_cols) > 1:
-        plot_correlation_heatmap(corr_matrix, title="Feature Correlation Heatmap (Before Remove)")
+    if show_plot:
+        # Plot correlation heatmap
+        plt.figure(figsize=(12, 10))
+        plt.imshow(corr_matrix, cmap='coolwarm', aspect='auto')
+        plt.colorbar(label='Correlation')
+        plt.title(f'Feature Correlation Matrix (Threshold: {corr_threshold})')
+        plt.xticks(range(len(feature_cols)), feature_cols, rotation=90)
+        plt.yticks(range(len(feature_cols)), feature_cols)
+        plt.tight_layout()
+        plt.show()
 
-    # Find highly correlated pairs
+    # Find features to remove
+    columns_to_remove = set()
     high_corr_pairs = []
-    features_to_remove = set()
 
-    for i in range(len(feature_cols)):
-        for j in range(i + 1, len(feature_cols)):
-            corr = corr_matrix.iloc[i, j]
+    for i in range(len(corr_matrix.columns)):
+        for j in range(i + 1, len(corr_matrix.columns)):
+            if corr_matrix.iloc[i, j] > corr_threshold:
+                colname_i = corr_matrix.columns[i]
+                colname_j = corr_matrix.columns[j]
+                high_corr_pairs.append((colname_i, colname_j, corr_matrix.iloc[i, j]))
 
-            if corr > corr_threshold:
-                col1 = feature_cols[i]
-                col2 = feature_cols[j]
-                high_corr_pairs.append((col1, col2, corr))
+                # Keep the first one, remove the second
+                if colname_j not in columns_to_remove:
+                    columns_to_remove.add(colname_j)
 
-                # Decide which to remove keep the one with higher variance
-                var1 = df[col1].var()
-                var2 = df[col2].var()
+    # Create cleaned feature list
+    cleaned_features = [col for col in feature_cols if col not in columns_to_remove]
 
-                if var1 >= var2:
-                    features_to_remove.add(col2)
-                    print(f"   Removing {col2} (kept {col1}, corr={corr:.3f})")
-                else:
-                    features_to_remove.add(col1)
-                    print(f"   Removing {col1} (kept {col2}, corr={corr:.3f})")
+    # Report results
+    if high_corr_pairs:
+        print(f"\nRemoved {len(columns_to_remove)} features due to high correlation (> {corr_threshold}):")
+        for col in sorted(columns_to_remove):
+            print(f"  - {col}")
 
-    # Results
-    features_to_keep = [col for col in feature_cols if col not in features_to_remove]
+        print(f"\nHigh correlation pairs found:")
+        for col1, col2, corr in high_corr_pairs[:10]:  # Show first 10
+            print(f"  {col1} - {col2}: {corr:.3f}")
+        if len(high_corr_pairs) > 10:
+            print(f"  ... and {len(high_corr_pairs) - 10} more pairs")
+    else:
+        print(f"\nNo features removed. No correlations above {corr_threshold} threshold.")
 
-    # Create visualization AFTER removing features
-    if show_plot and len(features_to_keep) > 1 and len(features_to_keep) <= 20:
-        remaining_corr = df[features_to_keep].corr().abs()
-        plot_correlation_heatmap(remaining_corr,
-                                 title="Feature Correlation Heatmap After Remove",
-                                 figsize=(10, 8))
+    return cleaned_features, columns_to_remove, high_corr_pairs
 
-    if features_to_remove:
-        print(f"\n Removed features: {list(features_to_remove)}")
 
-    return features_to_keep, list(features_to_remove), high_corr_pairs
-
-def get_top_correlations(df: DataFrame, feature_cols: list,
-                         top_n: int = 10, sample_size: int = 5000):
-
-    if len(df) > sample_size:
-        df = df.sample(sample_size, random_state=42)
-
+def get_top_correlations(df, feature_cols, top_n=10):
+    """
+    Get top correlations between features
+    """
+    # Calculate correlation matrix
     corr_matrix = df[feature_cols].corr().abs()
 
-    # Get top correlations
-    correlations = []
-    for i in range(len(feature_cols)):
-        for j in range(i + 1, len(feature_cols)):
-            corr = corr_matrix.iloc[i, j]
-            if corr > 0.1:  # Ignore very low correlations
-                correlations.append({
-                    'feature1': feature_cols[i],
-                    'feature2': feature_cols[j],
-                    'correlation': corr
-                })
+    # Get upper triangle of correlation matrix
+    upper = corr_matrix.where(np.triu(np.ones(corr_matrix.shape), k=1).astype(bool))
 
-    correlations.sort(key=lambda x: x['correlation'], reverse=True)
-    return correlations[:top_n]
+    # Find top correlations
+    top_corrs = []
+    for col in upper.columns:
+        for idx in upper.index:
+            if not pd.isna(upper.loc[idx, col]):
+                top_corrs.append((col, idx, upper.loc[idx, col]))
+
+    # Sort by correlation value
+    top_corrs.sort(key=lambda x: x[2], reverse=True)
+
+    return top_corrs[:top_n]

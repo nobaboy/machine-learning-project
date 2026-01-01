@@ -47,7 +47,7 @@ def analyze_and_visualize_missing(df: DataFrame) -> list[str] | None:
     plt.show()
 
     return missing[missing > 0].index.tolist()
-def plot_correlation_heatmap(corr_matrix, title="Correlation Heatmap", figsize=(12, 10)):
+def plot_correlation_heatmap(corr_matrix, title="Correlation Heatmap", figsize=(12, 10)): # AI
     plt.figure(figsize=figsize)
 
     # Create mask for upper triangle (optional)
@@ -70,7 +70,7 @@ def plot_correlation_heatmap(corr_matrix, title="Correlation Heatmap", figsize=(
     plt.show()
 
 
-def plot_top_correlations(high_corr_pairs, top_n=10):
+def plot_top_correlations(high_corr_pairs, top_n=10): # AI
     if not high_corr_pairs:
         print("No highly correlated pairs found")
         return
