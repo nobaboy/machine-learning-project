@@ -52,10 +52,9 @@ def optimize_memory_usage(name: str, df: DataFrame):
 
         elif col_dtype == object:
             unique = len(df[col].unique())
-            total = len(df[col])
 
             # we only want to convert low cardinality columns (e.g. eval_set from orders dataset)
-            if unique / total < 0.5:
+            if unique < 10:
                 df[col] = df[col].astype("category")
 
     after = calculate_memory_usage(df)
