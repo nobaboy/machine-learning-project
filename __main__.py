@@ -144,7 +144,6 @@ def main():
         print("\nTop correlations (sample):")
         for f1, f2, corr in top_corrs:
             print(f" - {f1} vs {f2}: {corr:.3f}")
-        print()
 
     # TODO this removes some of the interaction features we made, maybe make a feature priority list?
     # 2. Remove highly correlated features WITH VISUALIZATION
