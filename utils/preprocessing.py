@@ -7,11 +7,13 @@ from sklearn.ensemble import RandomForestRegressor
 from sklearn.impute import SimpleImputer
 from sklearn.preprocessing import StandardScaler, MinMaxScaler
 
-from utils.visualization import visualize_outlier_removal
+from utils.visualization import visualize_outlier_removal, visualize_numerical_correlation
 
 __all__ = (
     "impute_column",
     "remove_outliers",
+    "get_top_correlations",
+    "multicollinearity",
     "scale_features",
 )
 
@@ -28,7 +30,7 @@ def impute_column(
     df = df.copy()
 
     if col not in df.columns:
-        print(f"\nColumn {col} not found") # TODO better message
+        print(f"\nFailed to impute {col}, column is non-existent")
         return df
 
     print(f"\nImputing '{col}' using {strategy}")
@@ -131,6 +133,117 @@ def remove_outliers(df: DataFrame, cols: list[str], plot: bool = True):
     return df
 
 
+def get_top_correlations(
+    df: DataFrame,
+    feature_cols: list[str],
+    top_n: int = 10,
+    sample_size: int = 5000,
+):
+    if not feature_cols:
+        return []
+
+    if sample_size and 0 < sample_size < len(df):
+        df = df.sample(sample_size, random_state=42)
+
+    numeric_cols = [col for col in feature_cols if pd.api.types.is_numeric_dtype(df[col])]
+    if len(numeric_cols) < 2:
+        return []
+
+    corr_matrix = df[numeric_cols].corr().abs()
+
+    pairs = []
+    cols = numeric_cols
+
+    for i in range(len(cols)):
+        for j in range(i + 1, len(cols)):
+            corr = corr_matrix.iloc[i, j]
+
+            if corr > 0.1:
+                pairs.append((cols[i], cols[j], corr))
+
+    pairs.sort(key=lambda x: x[2], reverse=True)
+    return pairs[:top_n]
+
+
+def multicollinearity(
+    df: DataFrame,
+    feature_cols: list[str],
+    corr_threshold: float = 0.85,
+    sample_size: int = 10000,
+    plot: bool = True,
+):
+    if not feature_cols:
+        return [], [], []
+
+    if sample_size and 0 < sample_size < len(df):
+        df = df.sample(sample_size, random_state=42)
+
+    numeric_cols = [col for col in feature_cols if col in df.columns and pd.api.types.is_numeric_dtype(df[col])]
+
+    if len(numeric_cols) < 2:
+        print("Failed to check multicollinearity, not enough numeric features")
+        return feature_cols, [], []
+
+    variances = df[numeric_cols].var()
+    numeric_cols = [col for col in numeric_cols if variances.get(col, 0.0) > 0.0]
+
+    if len(numeric_cols) < 2:
+        print("Failed to check multicollinearity, ...")
+        return feature_cols, [], []
+
+    print(f"\nChecking multicollinearity for {len(feature_cols)} numeric features")
+
+    corr_matrix = df[numeric_cols].corr().abs()
+
+    if plot:
+        visualize_numerical_correlation(corr_matrix, title="Feature Correlation Heatmap (Before Removal)")
+
+    # Find highly correlated pairs
+    high_corr_pairs = []
+    features_to_remove = set()
+
+    cols = numeric_cols
+    for i in range(len(cols)):
+        for j in range(i + 1, len(cols)):
+            corr = corr_matrix.iloc[i, j]
+
+            if np.isnan(corr) or corr <= corr_threshold:
+                continue
+
+            col1 = cols[i]
+            col2 = cols[j]
+            high_corr_pairs.append((col1, col2, corr))
+
+            # Decide which to remove keep the one with higher variance
+            var1 = df[col1].var()
+            var2 = df[col2].var()
+
+            if var1 >= var2:
+                features_to_remove.add(col2)
+                print(f"Removing {col2} (kept {col1}, corr={corr:.3f})")
+            else:
+                features_to_remove.add(col1)
+                print(f"Removing {col1} (kept {col2}, corr={corr:.3f})")
+
+    # Results
+    features_to_keep = [col for col in feature_cols if col not in features_to_remove]
+
+    if plot and 1 < len(features_to_keep) <= 20:
+        # we only want to visualize the correlation of numerical features
+        keep_numeric = [col for col in numeric_cols if col not in features_to_remove]
+        visualize_numerical_correlation(
+            df[keep_numeric].corr().abs(),
+            title="Feature Correlation Heatmap (After Removal)",
+            figsize=(10, 8),
+        )
+
+    if features_to_remove:
+        print(f"\nRemoved features: {list(features_to_remove)}")
+
+    return features_to_keep, list(features_to_remove), high_corr_pairs
+
+
+
 def scale_features(
     df: DataFrame,
     excluded_columns: list[str],
@@ -148,9 +261,9 @@ def scale_features(
     print(f"Columns to scale: {cols_to_scale}")
 
     if method == "standard":
-        scaler = StandardScaler() # I'm using Logistic Regression and SVM work better with StandardScaler
+        scaler = StandardScaler()
     elif method == "minmax":
-        scaler = MinMaxScaler() # K-Nearest Neighbors KNN - distance based
+        scaler = MinMaxScaler()
     else:
         print(f"Unexpected method: {method}")
         return df, None

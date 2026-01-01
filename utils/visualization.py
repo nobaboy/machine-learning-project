@@ -7,8 +7,8 @@ __all__ = (
     "visualize_memory_usage",
     "analyze_and_visualize_missing",
     "visualize_outlier_removal",
-    "plot_correlation_heatmap",
-    "plot_top_correlations",
+    "visualize_numerical_correlation",
+    "visualize_top_correlations",
 )
 
 
@@ -54,7 +54,6 @@ def analyze_and_visualize_missing(df: DataFrame) -> list[str] | None:
 
     plt.xticks(rotation=45)
     plt.subplots_adjust(bottom=0.25)
-
     plt.show()
 
     return missing[missing > 0].index.tolist()
@@ -84,11 +83,11 @@ def visualize_outlier_removal(
     plt.show()
 
 
-# TODO cleanup
-def plot_correlation_heatmap(corr_matrix, title="Correlation Heatmap", figsize=(12, 10)):
+
+def visualize_numerical_correlation(corr_matrix, title: str, figsize=(12, 10)):
     plt.figure(figsize=figsize)
 
-    # Create mask for upper triangle (optional)
+    # create mask to hide upper triangle
     mask = np.triu(np.ones_like(corr_matrix, dtype=bool))
 
     sns.heatmap(
@@ -97,7 +96,7 @@ def plot_correlation_heatmap(corr_matrix, title="Correlation Heatmap", figsize=(
         annot=True,
         fmt=".2f",
         cmap="coolwarm",
-        center=0,
+        center=0.0,
         square=True,
         cbar_kws={"shrink": 0.8},
         linewidths=0.5,
@@ -110,36 +109,54 @@ def plot_correlation_heatmap(corr_matrix, title="Correlation Heatmap", figsize=(
     plt.show()
 
 
-# TODO cleanup
-def plot_top_correlations(high_corr_pairs, top_n=10):
+def visualize_top_correlations(
+    high_corr_pairs,
+    top_n: int = 10,
+    threshold: float = 0.85,
+    figsize=(12, 6),
+):
     if not high_corr_pairs:
-        print("No highly correlated pairs found")
+        print("No highly correlated feature pairs found")
         return
 
-    # Sort by correlation
+    plt.figure(figsize=figsize)
+
+    # sort by correlation
     sorted_pairs = sorted(high_corr_pairs, key=lambda x: x[2], reverse=True)[:top_n]
 
-    # Prepare data
-    labels = [f"{p[0]}\n↔\n{p[1]}" for p in sorted_pairs]
-    correlations = [p[2] for p in sorted_pairs]
+    labels = [f"{f1}\n↔\n{f2}" for f1, f2, _ in sorted_pairs]
+    correlations = [corr for _, _, corr in sorted_pairs]
 
-    # Create bar chart
-    plt.figure(figsize=(12, 6))
-    bars = plt.bar(range(len(sorted_pairs)), correlations,
-                   color=["red" if corr > 0.9 else "orange" if corr > 0.8 else "yellow"
-                          for corr in correlations])
+    colors = ["red" if c > 0.9 else "orange" if c > 0.8 else "yellow" for c in correlations]
+    bars = sns.barplot(x=labels, y=correlations, hue=labels, palette=colors)
 
-    plt.title(f"Top {len(sorted_pairs)} Most Correlated Feature Pairs",
-              fontsize=14, fontweight="bold")
-    plt.xlabel("Feature Pairs", fontsize=12)
-    plt.ylabel("Correlation Coefficient", fontsize=12)
-    plt.xticks(range(len(sorted_pairs)), labels, rotation=45, ha="right")
-    plt.axhline(y=0.85, color="r", linestyle="--", alpha=0.5, label="Threshold (0.85)")
+    plt.axhline(
+        y=threshold,
+        color="r",
+        linestyle="--",
+        alpha=0.5,
+        label=f"Threshold {threshold}",
+    )
 
-    # Add correlation values on bars
-    for i, (bar, corr) in enumerate(zip(bars, correlations)):
-        plt.text(bar.get_x() + bar.get_width() / 2, bar.get_height() + 0.01,
-                 f"{corr:.3f}", ha="center", va="bottom", fontsize=9)
+    plt.title(
+        f"Top {len(correlations)} Most Correlated Feature Pairs",
+        fontsize=14,
+        fontweight="bold",
+    )
+
+    plt.xlabel("Feature Pairs")
+    plt.ylabel("Correlation Coefficient")
+    plt.xticks(range(len(labels)), labels, rotation=45, ha="right")
+
+    for bar, corr in zip(bars.patches, correlations):
+        plt.text(
+            bar.get_x() + bar.get_width() / 2,
+            bar.get_height() + 0.01,
+            f"{corr:.2f}",
+            ha="center",
+            va="bottom",
+            fontsize=9,
+        )
 
     plt.legend()
     plt.tight_layout()
