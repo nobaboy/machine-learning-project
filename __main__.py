@@ -12,6 +12,15 @@ from utils.loader import load_data, calculate_memory_usage, format_memory_size, 
 from utils.visualization import visualize_memory_usage, analyze_and_visualize_missing, visualize_top_correlations
 from utils.preprocessing import impute_column, remove_outliers, get_top_correlations, multicollinearity, scale_features
 
+from utils.regression import (
+    create_ols_regressor,
+    create_lasso_regressor,
+    create_ridge_regressor,
+    create_elasticnet_regressor,
+    create_svr_linear_regressor,
+    create_svr_kernel_regressor,
+)
+
 
 def main():
     print("=" * 30)
@@ -217,6 +226,10 @@ def main():
 
     # ----- Modeling -----
 
+    print("=" * 30)
+    print("Task A")
+    print("=" * 30)
+
     print("Linear Training ")
     linear = create_linear_regressor(X_train, y_train)
     print("Lasso Training ")
@@ -286,6 +299,43 @@ def main():
     for model in classification_models:
         evaluate_classifier(model, X_test, y_test, model.__class__.__name__)
 
+    print("=" * 30)
+    print("Task B")
+    print("=" * 30)
+    print("OLS Training ")
+    ols = create_ols_regressor(X_train, y_train)
+
+    print("Lasso Training ")
+    lasso = create_lasso_regressor(X_train, y_train, alpha=0.01)
+
+    print("Ridge Training ")
+    ridge = create_ridge_regressor(X_train, y_train, alpha=10)
+
+    print("K-NN Training ")
+    elastic = create_elasticnet_regressor(X_train, y_train, alpha=0.01, l1_ratio=0.5)
+
+    print("SVM-Linear Training ")
+    svr_l = create_svr_linear_regressor(X_train, y_train, C=1.0)
+
+    print("SVR_K Training ")
+    svr_k = create_svr_kernel_regressor(X_train, y_train, C=10)
+
+    regression_models = [
+        ols,
+        lasso,
+        ridge,
+        elastic,
+        svr_l,
+        svr_k,
+    ]
+
+    for model in regression_models:
+        evaluate_regressor(
+            model,
+            X_test,
+            y_test,
+            model.__class__.__name__,
+        )
 
 if __name__ == "__main__":
     main()
