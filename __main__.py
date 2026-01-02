@@ -1,17 +1,22 @@
 from pandas import DataFrame
-import numpy as np
-from sklearn.neighbors import KNeighborsClassifier
-from utils import load_data, calculate_memory_usage, format_memory_size, optimize_memory_usage, imputerColumn, \
-    remove_outliers, featuresEng, get_feature_names, feature_scaling, multicollinearity, get_top_correlations
-from visualization import visualize_memory_usage, analyze_and_visualize_missing
-
-from sklearn.linear_model import LinearRegression
 from sklearn.model_selection import train_test_split
-from sklearn.linear_model import Lasso, Ridge
-from sklearn.metrics import r2_score, mean_squared_error, mean_absolute_error, accuracy_score, precision_score, recall_score, f1_score
-import xgboost as xgb
+
+from utils import get_feature_names
+from utils.classification import create_lasso_classifier, create_linear_regressor, create_ridge_classifier, \
+    create_knn_classifier, create_svm_linear_classifier, create_svm_kernel_classifier, create_decision_tree_classifier, \
+    create_random_forest_classifier, create_xgboost_classifier, create_lightgbm_classifier
+from utils.evaluation import evaluate_classifier
+from utils.feature import create_features
+from utils.loader import load_data, calculate_memory_usage, format_memory_size, optimize_memory_usage
+from utils.visualization import visualize_memory_usage, analyze_and_visualize_missing, visualize_top_correlations
+from utils.preprocessing import impute_column, remove_outliers, get_top_correlations, multicollinearity, scale_features
+
 
 def main():
+    print("=" * 30)
+    print("LOADING DATASETS")
+    print("=" * 30 + "\n")
+
     datasets: dict[str, DataFrame] = {
         "aisles": load_data("data/aisles.csv"),
         "departments": load_data("data/departments.csv"),
@@ -22,23 +27,30 @@ def main():
     }
 
     # ----- Optimization -----
+
+    print("\n" + "=" * 30)
+    print("MEMORY OPTIMIZATION")
+    print("=" * 30 + "\n")
+
     mem_usage_before = calculate_memory_usage(*datasets.values())
 
     for name, dataset in datasets.items():
         optimize_memory_usage(name, dataset)
 
     mem_usage_after = calculate_memory_usage(*datasets.values())
-    diff = 100 * (mem_usage_before - mem_usage_after) / mem_usage_before
-    print(
-        f"\nReduced total memory usage from {format_memory_size(mem_usage_before)} to {format_memory_size(mem_usage_after)} ({diff:.1f}% reduction)")
+    pct = 100 * (mem_usage_before - mem_usage_after) / mem_usage_before
+    print(f"\nReduced total memory usage from {format_memory_size(mem_usage_before)} to {format_memory_size(mem_usage_after)} ({pct:.1f}% reduction)")
 
-    # ----- Visualization -----
     visualize_memory_usage(mem_usage_before, mem_usage_after)
 
     aisles, departments, products = datasets["aisles"], datasets["departments"], datasets["products"]
     orders, prior, train = datasets["orders"], datasets["prior"], datasets["train"]
 
-    print("\nMerging datasets...")
+    print("\n" + "=" * 30)
+    print("MERGING DATASETS FOR EDA")
+    print("=" * 30 + "\n")
+
+    print("Merging all 5 datasets...")
 
     # we use this for most of the eda we have to do
     data_full = (
@@ -52,44 +64,67 @@ def main():
         )
     )  # final version
 
+    # ----- Imputation -----
+
+    print("\n" + "=" * 30)
+    print("MISSING VALUES + IMPUTATION")
+    print("=" * 30)
+
     missing_cols = analyze_and_visualize_missing(data_full)
+
+    for col in missing_cols:
+        if col == "days_since_prior_order":
+            data_full = impute_column(data_full, col, strategy="sentinel", fill_value=0)
+        else:
+            data_full = impute_column(data_full, col) # median
+
+    # ----- Outlier Handling -----
+
+    print("\n" + "=" * 30)
+    print("OUTLIER HANDLING")
+    print("=" * 30)
+
+    cols_to_check = ["days_since_prior_order", "add_to_cart_order"]
+    # TODO the professor suggested winsorizing, check that out instead of removing outliers
+    data_full = remove_outliers(data_full, cols_to_check)
+
+    # ----- Create train labels -----
+
+    print("\n" + "=" * 30)
+    print("BUILDING TRAIN LABELS")
+    print("=" * 30)
 
     base_features = data_full[["user_id", "product_id"]].drop_duplicates()
 
     train_labels = train[["order_id", "product_id", "reordered"]]
     train_user = train_labels.merge(orders[["order_id", "user_id"]], on="order_id")
 
-    train = base_features.merge(
+    train_with_labels = base_features.merge(
         train_user[["user_id", "product_id", "reordered"]],
         on=["user_id", "product_id"],
-        how="left",  # keep all the pairs from prior
+        how="left", # keep all the pairs from prior
     )
 
     # keeping all the pairs from prior introduces NaN values, which in python is a floating point number
     # so fill those missing values with 0 and optimize the dtype again
-    train["reordered"] = train["reordered"].fillna(0).astype("int8")
-
-    # ----- Imputation -----
-    data_full = imputerColumn(data_full, "days_since_prior_order", "median")
-
-    #  ----- Outlier Handling -----
-    columns_to_check = ['days_since_prior_order', 'add_to_cart_order']
-    data_full = remove_outliers(data_full, columns_to_check)
+    train_with_labels["reordered"] = train_with_labels["reordered"].fillna(0).astype("int8")
 
     # ----- Feature Engineering -----
-    print("\nFEATURE ENGINEERING")
 
-    # Extract just prior data
-    prior_only = prior.merge(
-        orders[['order_id', 'user_id', 'order_number']],
-        on='order_id'
+    print("\n" + "=" * 30)
+    print("FEATURE ENGINEERING")
+    print("=" * 30)
+
+    prior_orders = prior.merge(
+        orders[["order_id", "user_id", "order_number"]],
+        on="order_id",
+        how="left",
     )
 
-    # Create complete features
-    engineered_train = featuresEng(
-        prior_df=prior_only,
-        orders_df=orders,
-        train_df=train
+    engineered_train = create_features(
+        prior=prior_orders,
+        # orders=orders,
+        train_pairs=train_with_labels[["user_id", "product_id", "reordered"]],
     )
 
     # Get ALL feature names
@@ -97,157 +132,141 @@ def main():
 
     print(f"\nOriginal features ({len(feature_cols)} total):")
     for i, col in enumerate(feature_cols[:10], 1):
-        print(f"{i:2}. {col}")
+        print(f"{i:>2}. {col}")
     if len(feature_cols) > 10:
         print(f"... and {len(feature_cols) - 10} more")
 
-    # ---- MULTICOLLINEARITY CHECK ----
-    print("MULTICOLLINEARITY CHECK")
+    # ----- Correlation -----
+
+    print("\n" + "=" * 30)
+    print("CORRELATION CHECK")
+    print("=" * 30)
 
     # 1. Show top correlations
     top_corrs = get_top_correlations(engineered_train, feature_cols, top_n=5)
-    print("\nTop 5 feature correlations:")
-    for col1, col2, corr in top_corrs:
-        print(f"  {col1} - {col2}: {corr:.3f}")
 
-    # 2. Remove highly correlated features
+    if top_corrs:
+        print("\nTop correlations (sample):")
+        for col1, col2, corr in top_corrs:
+            print(f" - {col1} to {col2}: {corr:.3f}")
+
+    # ----- Multicollinearity -----
+
+    print("\n" + "=" * 30)
+    print("MULTICOLLINEARITY CHECK")
+    print("=" * 30)
+
+    print(f"\nNumber of features before removing multicollinearity: {len(feature_cols)}")
+
+    # TODO this removes some of the interaction features we made, maybe make a feature priority list?
+    # 2. Remove highly correlated features WITH VISUALIZATION
     clean_features, removed_features, high_corr_pairs = multicollinearity(
         df=engineered_train,
         feature_cols=feature_cols,
-        corr_threshold=0.85,
-        sample_size=5000,
+        corr_threshold=0.85, # remove if correlation > 0.85
+        sample_size=5000, # use 5k samples for speed
+        plot=True, # show correlation heatmaps
     )
+
+    # 3. Show bar chart of removed correlations
+    if high_corr_pairs:
+        print("\nVisualization of removed correlations:")
+        visualize_top_correlations(high_corr_pairs, top_n=min(10, len(high_corr_pairs)))
 
     # Update feature list
     feature_cols = clean_features
-    print(f"\nFeatures after removing multicollinearity: {len(feature_cols)}")
+    print(f"\nNumber of features after removing multicollinearity: {len(feature_cols)}")
 
-    # ----- Scale the features -----
+    # ----- Scaling -----
+
+    print("\n" + "=" * 30)
     print("SCALING FEATURES")
+    print("=" * 30)
 
-    # Split
-    train_df, test_df = train_test_split(engineered_train, test_size=0.25, random_state=42)
+    _train, _test = train_test_split(engineered_train, test_size=0.25, random_state=42)
+    excluded = ["user_id", "product_id", "order_id", "reordered"] + removed_features
 
-    # Scale train
-    train_df_scaled, scaler = feature_scaling(
-        train_df, feature_cols, method='standard', fit=True
+    scaled_train, scalar = scale_features(
+        df=_train,
+        excluded_columns=excluded,
     )
 
-    # Scale test
-    test_df_scaled, _ = feature_scaling(
-        test_df, feature_cols, method='standard', scaler=scaler, fit=False
+    scaled_test, _ = scale_features(
+        df=_test,
+        excluded_columns=excluded,
+        scalar=scalar,
     )
 
-    # Prepare X and y for modeling
-    X_train = train_df_scaled[feature_cols]
-    y_train = train_df_scaled['reordered']
+    # shut up pycharm again
+    # noinspection PyPep8Naming
+    X_train = scaled_train[feature_cols]
+    y_train = scaled_train["reordered"]
 
-    X_test = test_df_scaled[feature_cols]
-    y_test = test_df_scaled['reordered']
-
-    print(f"\nData prepared:")
-    print(f"  Train: {X_train.shape[0]} samples, {X_train.shape[1]} features")
-    print(f"  Test:  {X_test.shape[0]} samples, {X_test.shape[1]} features")
+    # shut up pycharm again v2
+    # noinspection PyPep8Naming
+    X_test = scaled_test[feature_cols]
+    y_test = scaled_test["reordered"]
 
     # Show final features
     print(f"\nFinal features for modeling ({len(feature_cols)}):")
-    for i, col in enumerate(feature_cols[:15], 1):  # Show first 15
+    for i, col in enumerate(feature_cols[:15], 1):
         print(f"{i:2}. {col}")
     if len(feature_cols) > 15:
         print(f"... and {len(feature_cols) - 15} more")
 
-    # ---------------- Train Models ----------------
-    linear = LinearRegression()
-    ridge = Ridge(alpha=10)
-    lasso = Lasso(alpha=0.01, max_iter=10000)
+    # ----- Modeling -----
 
-    linear.fit(X_train, y_train)
-    ridge.fit(X_train, y_train)
-    lasso.fit(X_train, y_train)
+    print("1")
+    linear = create_linear_regressor(X_train, y_train)
+    print("2")
+    lasso = create_lasso_classifier(X_train, y_train, alpha=1.0)
+    print("3")
+    ridge = create_ridge_classifier(X_train, y_train, alpha=1.0)
 
-    print("\nModels trained: Linear, Ridge (alpha=10), Lasso (alpha=0.01)")
+    print("4")
+    knn = create_knn_classifier(X_train, y_train, n_neighbors=5)
 
-    # Predictions on TRAIN data
-    y_pred_linear = np.ravel(linear.predict(X_train))
-    y_pred_ridge = np.ravel(ridge.predict(X_train))
-    y_pred_lasso = np.ravel(lasso.predict(X_train))
+    print("5")
+    svm_l = create_svm_linear_classifier(X_train, y_train, C=1.0, max_iter=1000)
+    # print("6")
+    # TODO for some reason this model takes forever. either I messed up something in it's settings or it
+    #      genuinely takes that long, because I left it running for about 9 hours and it didn't finish
+    # svm_k = create_svm_kernel_classifier(X_train, y_train, C=1.0)
 
-    # ---------------- Coefficient Analysis ----------------
-    print("\n" + "=" * 60)
-    print("COEFFICIENT ANALYSIS")
-    print("=" * 60)
+    print("7")
+    decision_tree = create_decision_tree_classifier(X_train, y_train, max_depth=10)
+    print("8")
+    random_forest = create_random_forest_classifier(X_train, y_train, n_estimators=100, max_depth=10)
 
-    print(f"\nNumber of features: {len(feature_cols)}")
-    print(f"Non-zero coefficients:")
-    print(f"  Linear: {np.sum(linear.coef_ != 0)}")
-    print(f"  Ridge:  {np.sum(ridge.coef_ != 0)}")
-    print(f"  Lasso:  {np.sum(lasso.coef_ != 0)}")
+    print("9")
+    # NVIDIA GPUs
+    # xgboost = create_xgboost_classifier(
+    #     X_train,
+    #     y_train,
+    #     n_estimators=100,
+    #     max_depth=6,
+    #     learning_rate=0.1,
+    #     device="cuda",
+    # )
 
-    print(f"\nPercentage of non-zero coefficients:")
-    print(f"  Linear: {np.sum(linear.coef_ != 0) / len(feature_cols) * 100:.1f}%")
-    print(f"  Ridge:  {np.sum(ridge.coef_ != 0) / len(feature_cols) * 100:.1f}%")
-    print(f"  Lasso:  {np.sum(lasso.coef_ != 0) / len(feature_cols) * 100:.1f}%")
+    # AMD GPUs
+    # lightgbm = create_lightgbm_classifier(
+    #     X_train,
+    #     y_train,
+    #     n_estimators=100,
+    #     max_depth=6,
+    #     learning_rate=0.1,
+    #     device="gpu",
+    # )
 
-    # ---------------- Summary ----------------
-    print("SUMMARY")
+    # TODO add xgboost or lightgbm once you uncomment it
+    classification_models = [linear, lasso, ridge, knn, svm_l, decision_tree, random_forest]
 
-    train_r2 = [r2_score(y_train, y_pred_linear),
-                r2_score(y_train, y_pred_ridge),
-                r2_score(y_train, y_pred_lasso)]
+    # FIXME evaluation fails instantly after all models finish fitting, checkout the fixme comment that I left
+    #       in `evaluate_classifier`
+    for model in classification_models:
+        evaluate_classifier(model, X_test, y_test, model.__class__.__name__)
 
-    models = ['Linear', 'Ridge', 'Lasso']
-    best_train_idx = np.argmax(train_r2)
-
-    print(f"\nBest model on training data: {models[best_train_idx]} (R² = {train_r2[best_train_idx]:.4f})")
-
-    # KNN CLASSIFIER
-
-    print("KNN CLASSIFIER")
-
-    # ----- Train KNN with different k values -----
-
-    k_values = 9
-
-    # ----- Train final model with best k -----
-    print(f"\nTraining final KNN model with k={k_values}...")
-    final_knn = KNeighborsClassifier(n_neighbors=k_values)
-    final_knn.fit(X_train, y_train)
-
-    # Get predictions
-    y_pred_train = final_knn.predict(X_train)
-    y_pred_test = final_knn.predict(X_test)
-
-    # Calculate metrics
-    train_acc = accuracy_score(y_train, y_pred_train)
-    test_acc = accuracy_score(y_test, y_pred_test)
-    precision = precision_score(y_test, y_pred_test)
-    recall = recall_score(y_test, y_pred_test)
-    f1 = f1_score(y_test, y_pred_test)
-
-
-    print("XGBOOST CLASSIFIER WITH GPU")
-
-    # ----- Train XGBoost -----
-    print("\nTraining XGBoost with GPU...")
-
-    xgb_model = xgb.XGBClassifier(
-        n_estimators=100,
-        max_depth=6,
-        learning_rate=0.1,
-        random_state=42,
-        n_jobs=-1,
-        verbosity=0,
-        device='cuda'
-    )
-
-    xgb_model.fit(X_train, y_train)
-
-    # Predict and evaluate
-    y_pred_test_xgb = xgb_model.predict(X_test)
-    test_acc_xgb = accuracy_score(y_test, y_pred_test_xgb)
-
-    print(f"XGBoost Test Accuracy: {test_acc_xgb:.4f}")
 
 if __name__ == "__main__":
     main()
-
