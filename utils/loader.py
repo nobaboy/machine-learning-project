@@ -21,7 +21,6 @@ def calculate_memory_usage(*dfs: DataFrame) -> int:
     return sum(df.memory_usage().sum() for df in dfs)
 
 
-# TODO move out sizes into consts
 def format_memory_size(size: int) -> str:
     if size < 1024:
         return f"{size:.0f} B"

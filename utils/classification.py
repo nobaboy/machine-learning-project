@@ -6,6 +6,19 @@ from sklearn.svm import SVC, LinearSVC
 from sklearn.tree import DecisionTreeClassifier
 from xgboost import XGBClassifier
 
+__all__ = (
+    "create_linear_regressor",
+    "create_lasso_classifier",
+    "create_ridge_classifier",
+    "create_knn_classifier",
+    "create_svm_linear_classifier",
+    "create_svm_kernel_classifier",
+    "create_decision_tree_classifier",
+    "create_random_forest_classifier",
+    "create_xgboost_classifier",
+    "create_lightgbm_classifier",
+)
+
 
 # noinspection PyPep8Naming
 def create_linear_regressor(X_train, y_train):
