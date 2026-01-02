@@ -131,7 +131,7 @@ def main():
     feature_cols = get_feature_names(engineered_train)
 
     print(f"\nOriginal features ({len(feature_cols)} total):")
-    for i, col in enumerate(feature_cols[:10], 1):  # Show first 10
+    for i, col in enumerate(feature_cols[:10], 1):
         print(f"{i:>2}. {col}")
     if len(feature_cols) > 10:
         print(f"... and {len(feature_cols) - 10} more")
@@ -142,7 +142,7 @@ def main():
     print("CORRELATION CHECK")
     print("=" * 30)
 
-    # 1. Show top correlations (optional, for insight)
+    # 1. Show top correlations
     top_corrs = get_top_correlations(engineered_train, feature_cols, top_n=5)
 
     if top_corrs:
