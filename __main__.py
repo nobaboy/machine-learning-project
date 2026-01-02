@@ -1,6 +1,11 @@
 from pandas import DataFrame
+from sklearn.model_selection import train_test_split
 
 from utils import get_feature_names
+from utils.classification import create_lasso_classifier, create_linear_regressor, create_ridge_classifier, \
+    create_knn_classifier, create_svm_linear_classifier, create_svm_kernel_classifier, create_decision_tree_classifier, \
+    create_random_forest_classifier, create_xgboost_classifier, create_lightgbm_classifier
+from utils.evaluation import evaluate_classifier
 from utils.feature import create_features
 from utils.loader import load_data, calculate_memory_usage, format_memory_size, optimize_memory_usage
 from utils.visualization import visualize_memory_usage, analyze_and_visualize_missing, visualize_top_correlations
@@ -43,7 +48,7 @@ def main():
 
     print("\n" + "=" * 30)
     print("MERGING DATASETS FOR EDA")
-    print("=" * 30)
+    print("=" * 30 + "\n")
 
     print("Merging all 5 datasets...")
 
@@ -131,10 +136,10 @@ def main():
     if len(feature_cols) > 10:
         print(f"... and {len(feature_cols) - 10} more")
 
-    # ----- Correlation and Multicollinearity -----
+    # ----- Correlation -----
 
     print("\n" + "=" * 30)
-    print("FAST MULTICOLLINEARITY CHECK")
+    print("CORRELATION CHECK")
     print("=" * 30)
 
     # 1. Show top correlations (optional, for insight)
@@ -142,8 +147,16 @@ def main():
 
     if top_corrs:
         print("\nTop correlations (sample):")
-        for f1, f2, corr in top_corrs:
-            print(f" - {f1} vs {f2}: {corr:.3f}")
+        for col1, col2, corr in top_corrs:
+            print(f" - {col1} to {col2}: {corr:.3f}")
+
+    # ----- Multicollinearity -----
+
+    print("\n" + "=" * 30)
+    print("MULTICOLLINEARITY CHECK")
+    print("=" * 30)
+
+    print(f"\nNumber of features before removing multicollinearity: {len(feature_cols)}")
 
     # TODO this removes some of the interaction features we made, maybe make a feature priority list?
     # 2. Remove highly correlated features WITH VISUALIZATION
@@ -162,6 +175,7 @@ def main():
 
     # Update feature list
     feature_cols = clean_features
+    print(f"\nNumber of features after removing multicollinearity: {len(feature_cols)}")
 
     # ----- Scaling -----
 
@@ -169,31 +183,89 @@ def main():
     print("SCALING FEATURES")
     print("=" * 30)
 
-    # Scale ONLY the clean features
+    _train, _test = train_test_split(engineered_train, test_size=0.25, random_state=42)
     excluded = ["user_id", "product_id", "order_id", "reordered"] + removed_features
-    engineered_train_scaled, scaler = scale_features(
-        df=engineered_train,
+
+    scaled_train, scalar = scale_features(
+        df=_train,
         excluded_columns=excluded,
+    )
+
+    scaled_test, _ = scale_features(
+        df=_test,
+        excluded_columns=excluded,
+        scalar=scalar,
     )
 
     # shut up pycharm again
     # noinspection PyPep8Naming
-    X = engineered_train_scaled[feature_cols]
-    y = engineered_train_scaled["reordered"]
+    X_train = scaled_train[feature_cols]
+    y_train = scaled_train["reordered"]
+
+    # shut up pycharm again v2
+    # noinspection PyPep8Naming
+    X_test = scaled_test[feature_cols]
+    y_test = scaled_test["reordered"]
 
     # Show final features
     print(f"\nFinal features for modeling ({len(feature_cols)}):")
-    for i, col in enumerate(feature_cols, 1):
+    for i, col in enumerate(feature_cols[:15], 1):
         print(f"{i:2}. {col}")
+    if len(feature_cols) > 15:
+        print(f"... and {len(feature_cols) - 15} more")
 
-    # quick info about the training matrix, remove after modelling
+    # ----- Modeling -----
 
-    print("\n" + "=" * 30)
-    print("TRAINING MATRIX RESULT")
-    print("=" * 30 + "\n")
-    print(f"X shape: {X.shape}")
-    print(f"y shape: {y.shape}")
-    print(f"Target values:\n{y.value_counts(normalize=True).rename("pct").mul(100).round(2)}")
+    print("1")
+    linear = create_linear_regressor(X_train, y_train)
+    print("2")
+    lasso = create_lasso_classifier(X_train, y_train, alpha=1.0)
+    print("3")
+    ridge = create_ridge_classifier(X_train, y_train, alpha=1.0)
+
+    print("4")
+    knn = create_knn_classifier(X_train, y_train, n_neighbors=5)
+
+    print("5")
+    svm_l = create_svm_linear_classifier(X_train, y_train, C=1.0, max_iter=1000)
+    # print("6")
+    # TODO for some reason this model takes forever. either I messed up something in it's settings or it
+    #      genuinely takes that long, because I left it running for about 9 hours and it didn't finish
+    # svm_k = create_svm_kernel_classifier(X_train, y_train, C=1.0)
+
+    print("7")
+    decision_tree = create_decision_tree_classifier(X_train, y_train, max_depth=10)
+    print("8")
+    random_forest = create_random_forest_classifier(X_train, y_train, n_estimators=100, max_depth=10)
+
+    print("9")
+    # NVIDIA GPUs
+    # xgboost = create_xgboost_classifier(
+    #     X_train,
+    #     y_train,
+    #     n_estimators=100,
+    #     max_depth=6,
+    #     learning_rate=0.1,
+    #     device="cuda",
+    # )
+
+    # AMD GPUs
+    # lightgbm = create_lightgbm_classifier(
+    #     X_train,
+    #     y_train,
+    #     n_estimators=100,
+    #     max_depth=6,
+    #     learning_rate=0.1,
+    #     device="gpu",
+    # )
+
+    # TODO add xgboost or lightgbm once you uncomment it
+    classification_models = [linear, lasso, ridge, knn, svm_l, decision_tree, random_forest]
+
+    # FIXME evaluation fails instantly after all models finish fitting, checkout the fixme comment that I left
+    #       in `evaluate_classifier`
+    for model in classification_models:
+        evaluate_classifier(model, X_test, y_test, model.__class__.__name__)
 
 
 if __name__ == "__main__":

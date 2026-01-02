@@ -148,6 +148,7 @@ def visualize_top_correlations(
     plt.ylabel("Correlation Coefficient")
     plt.xticks(range(len(labels)), labels, rotation=45, ha="right")
 
+    # TODO surely there is a better way of doing this rather than accessing patches, could just use `plt.subplots`
     for bar, corr in zip(bars.patches, correlations):
         plt.text(
             bar.get_x() + bar.get_width() / 2,

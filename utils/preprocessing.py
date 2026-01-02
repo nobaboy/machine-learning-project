@@ -47,14 +47,8 @@ def impute_column(
     # ----- Sentinel -----
 
     elif strategy == "sentinel":
-        if np.issubdtype(df[col].dtype, np.integer):
-            sentinel = kwargs.get("fill_value", -999)
-        elif np.issubdtype(df[col].dtype, np.floating):
-            sentinel = kwargs.get("fill_value", -999.0)
-        else:
-            sentinel = kwargs.get("fill_value", "MISSING")
-
-        df[col] = df[col].fillna(sentinel)
+        fill_value = kwargs.get("fill_value", -999 if pd.api.types.is_numeric_dtype(df[col].dtype) else "MISSING")
+        df[col] = df[col].fillna(fill_value)
 
     # ----- Model-Based -----
 
@@ -87,8 +81,11 @@ def impute_column(
         df[col][mask_missing] = rf.predict(X_missing)
 
     else:
-        print(f"Unexpected strategy: {strategy}")
-        return df
+        # "mean", "median", "most_frequent", "sentinel", "model"
+        raise ValueError(
+            f"Unexpected imputing strategy. "
+            f"Expected one of 'mean', 'median', 'most_frequent', 'sentinel', 'model', but got {strategy}"
+        )
 
     missing_after = df[col].isna().sum()
     print(f"Missing values after imputation: {missing_after}")
@@ -107,8 +104,7 @@ def remove_outliers(df: DataFrame, cols: list[str], plot: bool = True):
 
         # Statistics
         before_count = len(df)
-        Q1 = df[col].quantile(0.25)
-        Q3 = df[col].quantile(0.75)
+        Q1, Q3 = df[col].quantile([0.25, 0.75])
         IQR = Q3 - Q1
 
         if IQR == 0:
@@ -118,9 +114,8 @@ def remove_outliers(df: DataFrame, cols: list[str], plot: bool = True):
         lower = Q1 - 1.5 * IQR
         upper = Q3 + 1.5 * IQR
 
-        # Define what to keep and what to remove
         mask_keep = (df[col] >= lower) & (df[col] <= upper)
-        outliers_count = (~mask_keep).sum()  # Count the inverse True outliers
+        outliers_count = (~mask_keep).sum()
 
         if plot:
             visualize_outlier_removal(df, col, mask_keep, outliers_count, before_count)
@@ -243,11 +238,11 @@ def multicollinearity(
     return features_to_keep, list(features_to_remove), high_corr_pairs
 
 
-
 def scale_features(
     df: DataFrame,
     excluded_columns: list[str],
-    method: Literal["standard", "minmax"] = "minmax",
+    method: Literal["standard", "minmax"] = "standard",
+    scalar = None,
 ):
     # just use number here to also scale the new engineered features since their dtypes
     # aren't the optimized variant
@@ -260,13 +255,19 @@ def scale_features(
     print(f"\nScaling {len(cols_to_scale)} numeric columns: ")
     print(f"Columns to scale: {cols_to_scale}")
 
+    if scalar:
+        df[cols_to_scale] = scalar.transform(df[cols_to_scale])
+        return df, scalar
+
     if method == "standard":
         scaler = StandardScaler()
     elif method == "minmax":
         scaler = MinMaxScaler()
     else:
-        print(f"Unexpected method: {method}")
-        return df, None
+        raise ValueError(
+            f"Unexpected scaling method. "
+            f"Expected either 'standard' or 'minmax' but got {method}"
+        )
 
     df[cols_to_scale] = scaler.fit_transform(df[cols_to_scale])
     return df, scaler
