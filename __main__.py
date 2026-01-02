@@ -1,11 +1,12 @@
 from pandas import DataFrame
 from sklearn.model_selection import train_test_split
+import xgboost as xgb
 
 from utils import get_feature_names
 from utils.classification import create_lasso_classifier, create_linear_regressor, create_ridge_classifier, \
     create_knn_classifier, create_svm_linear_classifier, create_svm_kernel_classifier, create_decision_tree_classifier, \
     create_random_forest_classifier, create_xgboost_classifier, create_lightgbm_classifier
-from utils.evaluation import evaluate_classifier
+from utils.evaluation import evaluate_classifier , evaluate_regressor
 from utils.feature import create_features
 from utils.loader import load_data, calculate_memory_usage, format_memory_size, optimize_memory_usage
 from utils.visualization import visualize_memory_usage, analyze_and_visualize_missing, visualize_top_correlations
@@ -216,38 +217,40 @@ def main():
 
     # ----- Modeling -----
 
-    print("1")
+    print("Linear Training ")
     linear = create_linear_regressor(X_train, y_train)
-    print("2")
-    lasso = create_lasso_classifier(X_train, y_train, alpha=1.0)
-    print("3")
-    ridge = create_ridge_classifier(X_train, y_train, alpha=1.0)
+    print("Lasso Training ")
+    lasso = create_lasso_classifier(X_train, y_train, alpha=0.1)
+    print("Ridge Training ")
+    ridge = create_ridge_classifier(X_train, y_train, alpha=10)
 
-    print("4")
+    print("K-NN Training ")
     knn = create_knn_classifier(X_train, y_train, n_neighbors=5)
 
-    print("5")
-    svm_l = create_svm_linear_classifier(X_train, y_train, C=1.0, max_iter=1000)
-    # print("6")
-    # TODO for some reason this model takes forever. either I messed up something in it's settings or it
-    #      genuinely takes that long, because I left it running for about 9 hours and it didn't finish
-    # svm_k = create_svm_kernel_classifier(X_train, y_train, C=1.0)
+    print("SVM-Linear Training ")
+    svm_l = create_svm_linear_classifier(X_train, y_train, C=1.0, max_iter=10000)
+    print("6")
+    svm_k = create_svm_kernel_classifier(X_train, y_train, C=10)
 
     print("7")
-    decision_tree = create_decision_tree_classifier(X_train, y_train, max_depth=10)
+    decision_tree = create_decision_tree_classifier(X_train, y_train, max_depth=15)
     print("8")
-    random_forest = create_random_forest_classifier(X_train, y_train, n_estimators=100, max_depth=10)
+    random_forest = create_random_forest_classifier(X_train, y_train, n_estimators=150, max_depth=15)
+
 
     print("9")
     # NVIDIA GPUs
-    # xgboost = create_xgboost_classifier(
-    #     X_train,
-    #     y_train,
-    #     n_estimators=100,
-    #     max_depth=6,
-    #     learning_rate=0.1,
-    #     device="cuda",
-    # )
+    xgboost = xgb.XGBClassifier(
+        n_estimators=500,
+        max_depth=10,
+        learning_rate=0.1,
+        random_state=42,
+        n_jobs=-1,
+        verbosity=0,
+        device='cuda'
+    )
+
+    xgboost.fit(X_train, y_train)
 
     # AMD GPUs
     # lightgbm = create_lightgbm_classifier(
@@ -259,11 +262,27 @@ def main():
     #     device="gpu",
     # )
 
-    # TODO add xgboost or lightgbm once you uncomment it
-    classification_models = [linear, lasso, ridge, knn, svm_l, decision_tree, random_forest]
+    xgboost.fit(X_train, y_train)
 
-    # FIXME evaluation fails instantly after all models finish fitting, checkout the fixme comment that I left
-    #       in `evaluate_classifier`
+
+    regression_models = [
+        linear,
+        lasso,
+        ridge,
+    ]
+
+    classification_models = [
+        svm_l,
+        svm_k,
+        knn,
+        random_forest,
+        decision_tree,
+        xgboost,
+    ]
+
+    for model in regression_models:
+        evaluate_regressor(model, X_test, y_test, model.__class__.__name__)
+
     for model in classification_models:
         evaluate_classifier(model, X_test, y_test, model.__class__.__name__)
 

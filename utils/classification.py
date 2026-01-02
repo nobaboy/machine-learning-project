@@ -57,11 +57,15 @@ def create_svm_linear_classifier(X_train, y_train, C: float, max_iter):
 
 
 # noinspection PyPep8Naming
-def create_svm_kernel_classifier(X_train, y_train, C: float):
-    return SVC(
+from sklearn.svm import LinearSVC
+# or SVC with linear kernel
+
+def create_svm_kernel_classifier(X_train, y_train, C: float): # Linear SVM faster the RBF
+    return LinearSVC(
         C=C,
         class_weight="balanced",
-        probability=True,
+        max_iter=10000,
+        dual=False if X_train.shape[0] > X_train.shape[1] else True
     ).fit(X_train, y_train)
 
 
