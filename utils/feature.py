@@ -1,7 +1,7 @@
 import numpy as np
 from pandas import DataFrame
 
-__all__ = ("create_features",)
+__all__ = ("features",)
 
 
 # TODO mean days between orders, last order recency
@@ -44,7 +44,7 @@ def build_temporal_features(orders: DataFrame) -> DataFrame:
     ...
 
 
-def create_features(prior: DataFrame, train_pairs: DataFrame) -> DataFrame:
+def features(prior: DataFrame, train_pairs: DataFrame) -> DataFrame:
     features = train_pairs.copy()
 
     user_features = build_user_features(prior)

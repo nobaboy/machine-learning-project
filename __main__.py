@@ -1,24 +1,29 @@
 from pandas import DataFrame
 from sklearn.model_selection import train_test_split
-import xgboost as xgb
 
 from utils import get_feature_names
-from utils.classification import create_lasso_classifier, create_linear_regressor, create_ridge_classifier, \
-    create_knn_classifier, create_svm_linear_classifier, create_svm_kernel_classifier, create_decision_tree_classifier, \
-    create_random_forest_classifier, create_xgboost_classifier, create_lightgbm_classifier
+from utils.classification import lasso_classifier, linear_regressor, ridge_classifier, \
+    knn_classifier, svm_linear_classifier, svm_kernel_classifier, decision_tree_classifier, \
+    random_forest_classifier, xgboost_classifier, lightgbm_classifier
 from utils.evaluation import evaluate_classifier , evaluate_regressor
-from utils.feature import create_features
+from utils.feature import features
 from utils.loader import load_data, calculate_memory_usage, format_memory_size, optimize_memory_usage
 from utils.visualization import visualize_memory_usage, analyze_and_visualize_missing, visualize_top_correlations
-from utils.preprocessing import impute_column, remove_outliers, get_top_correlations, multicollinearity, scale_features
-
+from utils.preprocessing import impute_column, winsorize_outliers, get_top_correlations, multicollinearity, scale_features
+from utils.regression import (ols_regressor,lasso_regressor,ridge_regressor,elasticnet_regressor,
+    svr_linear_regressor,
+    svr_kernel_regressor,
+    knn_regressor,
+    decision_tree_regressor,
+    random_forest_regressor,
+    xgboost_regressor)
 from utils.regression import (
-    create_ols_regressor,
-    create_lasso_regressor,
-    create_ridge_regressor,
-    create_elasticnet_regressor,
-    create_svr_linear_regressor,
-    create_svr_kernel_regressor,
+    ols_regressor,
+    lasso_regressor,
+    ridge_regressor,
+    elasticnet_regressor,
+    svr_linear_regressor,
+    svr_kernel_regressor,
 )
 
 
@@ -95,9 +100,8 @@ def main():
     print("=" * 30)
 
     cols_to_check = ["days_since_prior_order", "add_to_cart_order"]
-    # TODO the professor suggested winsorizing, check that out instead of removing outliers
-    data_full = remove_outliers(data_full, cols_to_check)
-
+    # DONE
+    data_full = winsorize_outliers(data_full, cols_to_check) # Model still sees them, but as a capped value (e.g., 28 instead of 30)
     # ----- Create train labels -----
 
     print("\n" + "=" * 30)
@@ -131,7 +135,7 @@ def main():
         how="left",
     )
 
-    engineered_train = create_features(
+    engineered_train = features(
         prior=prior_orders,
         # orders=orders,
         train_pairs=train_with_labels[["user_id", "product_id", "reordered"]],
@@ -230,96 +234,129 @@ def main():
     print("Task A")
     print("=" * 30)
 
-    print("Linear Training ")
-    linear = create_linear_regressor(X_train, y_train)
-    print("Lasso Training ")
-    lasso = create_lasso_classifier(X_train, y_train, alpha=0.1)
-    print("Ridge Training ")
-    ridge = create_ridge_classifier(X_train, y_train, alpha=10)
-
-    print("K-NN Training ")
-    knn = create_knn_classifier(X_train, y_train, n_neighbors=5)
-
-    print("SVM-Linear Training ")
-    svm_l = create_svm_linear_classifier(X_train, y_train, C=1.0, max_iter=10000)
-    print("6")
-    svm_k = create_svm_kernel_classifier(X_train, y_train, C=10)
-
-    print("7")
-    decision_tree = create_decision_tree_classifier(X_train, y_train, max_depth=15)
-    print("8")
-    random_forest = create_random_forest_classifier(X_train, y_train, n_estimators=150, max_depth=15)
-
-
-    print("9")
-    # NVIDIA GPUs
-    xgboost = xgb.XGBClassifier(
-        n_estimators=500,
-        max_depth=10,
-        learning_rate=0.1,
-        random_state=42,
-        n_jobs=-1,
-        verbosity=0,
-        device='cuda'
-    )
-
-    xgboost.fit(X_train, y_train)
-
-    # AMD GPUs
-    # lightgbm = create_lightgbm_classifier(
-    #     X_train,
-    #     y_train,
-    #     n_estimators=100,
-    #     max_depth=6,
+    # print("Linear Training ")
+    # linear = linear_regressor(X_train, y_train)
+    # print("Lasso Training ")
+    # lasso = lasso_classifier(X_train, y_train, alpha=0.1)
+    # print("Ridge Training ")
+    # ridge = ridge_classifier(X_train, y_train, alpha=10)
+    #
+    # print("K-NN Training ")
+    # knn = knn_classifier(X_train, y_train, n_neighbors=5)
+    #
+    # print("SVM-Linear Training ")
+    # svm_l = svm_linear_classifier(X_train, y_train, C=1.0, max_iter=10000)
+    # print("SVM_K Training ")
+    # svm_k = svm_kernel_classifier(X_train, y_train, C=10)
+    #
+    # print("Decision Tree Training ")
+    # decision_tree = decision_tree_classifier(X_train, y_train, max_depth=15)
+    # print("Random Forest Training ")
+    # random_forest = random_forest_classifier(X_train, y_train, n_estimators=100, max_depth=10)
+    #
+    #
+    # print("XGBoost Training ")
+    # # NVIDIA GPUs
+    # xgboost = xgb.XGBClassifier(
+    #     n_estimators=500,
+    #     max_depth=10,
     #     learning_rate=0.1,
-    #     device="gpu",
+    #     random_state=42,
+    #     n_jobs=-1,
+    #     verbosity=0,
+    #     device='cuda'
     # )
-
-    xgboost.fit(X_train, y_train)
-
-
-    regression_models = [
-        linear,
-        lasso,
-        ridge,
-    ]
-
-    classification_models = [
-        svm_l,
-        svm_k,
-        knn,
-        random_forest,
-        decision_tree,
-        xgboost,
-    ]
-
-    for model in regression_models:
-        evaluate_regressor(model, X_test, y_test, model.__class__.__name__)
-
-    for model in classification_models:
-        evaluate_classifier(model, X_test, y_test, model.__class__.__name__)
+    #
+    # xgboost.fit(X_train, y_train)
+    #
+    # # AMD GPUs
+    # # lightgbm = lightgbm_classifier(
+    # #     X_train,
+    # #     y_train,
+    # #     n_estimators=100,
+    # #     max_depth=6,
+    # #     learning_rate=0.1,
+    # #     device="gpu",
+    # # )
+    #
+    # xgboost.fit(X_train, y_train)
+    #
+    #
+    # regression_models = [
+    #     linear,
+    #     lasso,
+    #     ridge,
+    # ]
+    #
+    # classification_models = [
+    #     svm_l,
+    #     svm_k,
+    #     knn,
+    #     random_forest,
+    #     decision_tree,
+    #     xgboost,
+    # ]
+    #
+    # for model in regression_models:
+    #     evaluate_regressor(model, X_test, y_test, model.__class__.__name__)
+    #
+    # for model in classification_models:
+    #     evaluate_classifier(model, X_test, y_test, model.__class__.__name__)
 
     print("=" * 30)
     print("Task B")
     print("=" * 30)
-    print("OLS Training ")
-    ols = create_ols_regressor(X_train, y_train)
 
-    print("Lasso Training ")
-    lasso = create_lasso_regressor(X_train, y_train, alpha=0.01)
+    print("OLS Training")
+    ols = ols_regressor(X_train, y_train)
 
-    print("Ridge Training ")
-    ridge = create_ridge_regressor(X_train, y_train, alpha=10)
+    print("Lasso Training")
+    lasso = lasso_regressor(X_train, y_train, alpha=0.01)
 
-    print("K-NN Training ")
-    elastic = create_elasticnet_regressor(X_train, y_train, alpha=0.01, l1_ratio=0.5)
+    print("Ridge Training")
+    ridge = ridge_regressor(X_train, y_train, alpha=10)
 
-    print("SVM-Linear Training ")
-    svr_l = create_svr_linear_regressor(X_train, y_train, C=1.0)
+    print("ElasticNet Training")
+    elastic = elasticnet_regressor(
+        X_train,
+        y_train,
+        alpha=0.01,
+        l1_ratio=0.5,
+    )
 
-    print("SVR_K Training ")
-    svr_k = create_svr_kernel_regressor(X_train, y_train, C=10)
+    print("SVR Linear Training")
+    svr_l = svr_linear_regressor(X_train, y_train, C=1.0)
 
+    print("SVR RBF Training")
+    svr_k = svr_kernel_regressor(X_train, y_train, C=10)
+
+    print("K-NN Training")
+    knn = knn_regressor(
+        X_train,
+        y_train,
+        n_neighbors=5,
+    )
+
+    print("Decision Tree Training")
+    DecisionT = decision_tree_regressor(
+        X_train,
+        y_train,
+        max_depth=10,
+    )
+
+    print("Random Forest Training")
+    RandomF = random_forest_regressor(
+        X_train,
+        y_train,
+        n_estimators=100,
+    )
+
+    print("XGBoost Training")
+    Xgboost_regressor = xgboost_regressor(
+        X_train,
+        y_train,
+        device="cuda",
+    )
     regression_models = [
         ols,
         lasso,
@@ -327,7 +364,18 @@ def main():
         elastic,
         svr_l,
         svr_k,
+        RandomF,
+        knn,
+        DecisionT,
+        Xgboost_regressor,
     ]
+    for model in regression_models:
+        evaluate_regressor(
+            model,
+            X_test,
+            y_test,
+            model.__class__.__name__,
+        )
 
     for model in regression_models:
         evaluate_regressor(

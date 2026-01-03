@@ -1,7 +1,5 @@
 from typing import Literal
 
-import numpy as np
-import pandas as pd
 from pandas import DataFrame
 from sklearn.ensemble import RandomForestRegressor
 from sklearn.impute import SimpleImputer
@@ -11,7 +9,6 @@ from utils.visualization import visualize_outlier_removal, visualize_numerical_c
 
 __all__ = (
     "impute_column",
-    "remove_outliers",
     "get_top_correlations",
     "multicollinearity",
     "scale_features",
@@ -91,41 +88,46 @@ def impute_column(
     print(f"Missing values after imputation: {missing_after}")
 
     return df
+from typing import Literal
+import pandas as pd
+import numpy as np
+from utils.visualization import visualize_outlier_removal
+def winsorize_outliers(
+    df: pd.DataFrame,
+    cols: list[str],
+    limits: tuple[float, float] = (0.05, 0.05),
+    plot: bool = True
+) -> pd.DataFrame:
 
-
-def remove_outliers(df: DataFrame, cols: list[str], plot: bool = True):
     df = df.copy()
 
     for col in cols:
         if col not in df.columns or not pd.api.types.is_numeric_dtype(df[col]):
+            print(f"Skipping {col} (non-numeric or missing)")
             continue
 
-        print(f"\nProcessing: {col}")
+        print(f"\nWinsorizing: {col}")
 
-        # Statistics
-        before_count = len(df)
-        Q1, Q3 = df[col].quantile([0.25, 0.75])
-        IQR = Q3 - Q1
-
-        if IQR == 0:
-            print(f"Skipping {col} since it has no variation")
-            continue
-
-        lower = Q1 - 1.5 * IQR
-        upper = Q3 + 1.5 * IQR
-
-        mask_keep = (df[col] >= lower) & (df[col] <= upper)
-        outliers_count = (~mask_keep).sum()
+        lower_pct, upper_pct = limits
+        lower = df[col].quantile(lower_pct)
+        upper = df[col].quantile(1 - upper_pct)
 
         if plot:
-            visualize_outlier_removal(df, col, mask_keep, outliers_count, before_count)
+            visualize_outlier_removal(
+                df, col, mask_keep=(df[col] >= lower) & (df[col] <= upper),
+                outliers_count=((df[col] < lower) | (df[col] > upper)).sum(),
+                before_count=len(df)
+            )
 
-        df = df[mask_keep].copy()
+        # Clip values
+        df[col] = df[col].clip(lower, upper)
 
-        pct = 100 * outliers_count / before_count
-        print(f"Removed {outliers_count} outliers ({pct:.1f}%)")
+        outliers_count = ((df[col] == lower) | (df[col] == upper)).sum()
+        pct = 100 * outliers_count / len(df)
+        print(f"Winsorized {outliers_count} values ({pct:.2f}%) in '{col}'")
 
     return df
+
 
 
 def get_top_correlations(
