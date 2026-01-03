@@ -1,5 +1,7 @@
 from typing import Literal
 
+import numpy as np
+import pandas as pd
 from pandas import DataFrame
 from sklearn.ensemble import RandomForestRegressor
 from sklearn.impute import SimpleImputer
@@ -9,8 +11,9 @@ from utils.visualization import visualize_outlier_removal, visualize_numerical_c
 
 __all__ = (
     "impute_column",
-    "get_top_correlations",
-    "multicollinearity",
+    "remove_outliers",
+    "winsorize_outliers",
+    "remove_multicollinearity",
     "scale_features",
 )
 
@@ -88,17 +91,50 @@ def impute_column(
     print(f"Missing values after imputation: {missing_after}")
 
     return df
-from typing import Literal
-import pandas as pd
-import numpy as np
-from utils.visualization import visualize_outlier_removal
+
+
+def remove_outliers(df: DataFrame, cols: list[str], plot: bool = True):
+    df = df.copy()
+
+    for col in cols:
+        if col not in df.columns or not pd.api.types.is_numeric_dtype(df[col]):
+            print(f"Skipping {col} (non-numeric or missing)")
+            continue
+
+        print(f"\nRemoving: {col}")
+
+        # Statistics
+        before_count = len(df)
+        Q1, Q3 = df[col].quantile([0.25, 0.75])
+        IQR = Q3 - Q1
+
+        if IQR == 0:
+            print(f"Skipping {col} since it has no variation")
+            continue
+
+        lower = Q1 - 1.5 * IQR
+        upper = Q3 + 1.5 * IQR
+
+        mask_keep = (df[col] >= lower) & (df[col] <= upper)
+        outliers_count = (~mask_keep).sum()
+
+        if plot:
+            visualize_outlier_removal(df, col, mask_keep, outliers_count, before_count)
+
+        df = df[mask_keep].copy()
+
+        pct = 100 * outliers_count / before_count
+        print(f"Removed {outliers_count} outliers ({pct:.1f}%)")
+
+    return df
+
+
 def winsorize_outliers(
-    df: pd.DataFrame,
+    df: DataFrame,
     cols: list[str],
     limits: tuple[float, float] = (0.05, 0.05),
     plot: bool = True
-) -> pd.DataFrame:
-
+) -> DataFrame:
     df = df.copy()
 
     for col in cols:
@@ -129,40 +165,7 @@ def winsorize_outliers(
     return df
 
 
-
-def get_top_correlations(
-    df: DataFrame,
-    feature_cols: list[str],
-    top_n: int = 10,
-    sample_size: int = 5000,
-):
-    if not feature_cols:
-        return []
-
-    if sample_size and 0 < sample_size < len(df):
-        df = df.sample(sample_size, random_state=42)
-
-    numeric_cols = [col for col in feature_cols if pd.api.types.is_numeric_dtype(df[col])]
-    if len(numeric_cols) < 2:
-        return []
-
-    corr_matrix = df[numeric_cols].corr().abs()
-
-    pairs = []
-    cols = numeric_cols
-
-    for i in range(len(cols)):
-        for j in range(i + 1, len(cols)):
-            corr = corr_matrix.iloc[i, j]
-
-            if corr > 0.1:
-                pairs.append((cols[i], cols[j], corr))
-
-    pairs.sort(key=lambda x: x[2], reverse=True)
-    return pairs[:top_n]
-
-
-def multicollinearity(
+def remove_multicollinearity(
     df: DataFrame,
     feature_cols: list[str],
     corr_threshold: float = 0.85,
@@ -223,9 +226,9 @@ def multicollinearity(
                 print(f"Removing {col1} (kept {col2}, corr={corr:.3f})")
 
     # Results
-    features_to_keep = [col for col in feature_cols if col not in features_to_remove]
+    kept_features = [col for col in feature_cols if col not in features_to_remove]
 
-    if plot and 1 < len(features_to_keep) <= 20:
+    if plot and 1 < len(kept_features) <= 20:
         # we only want to visualize the correlation of numerical features
         keep_numeric = [col for col in numeric_cols if col not in features_to_remove]
         visualize_numerical_correlation(
@@ -237,7 +240,7 @@ def multicollinearity(
     if features_to_remove:
         print(f"\nRemoved features: {list(features_to_remove)}")
 
-    return features_to_keep, list(features_to_remove), high_corr_pairs
+    return kept_features, list(features_to_remove), high_corr_pairs
 
 
 def scale_features(

@@ -30,7 +30,7 @@ def evaluate_classifier(
     elif hasattr(model, "decision_function"):
         y_score = model.decision_function(X_test)
     else:
-        # if all fails, treat prediction as the score (e.g. LinearRegression)
+        # if all fails, treat prediction as the score
         y_score = y_pred
 
     if len(np.unique(y_test)) < 2:
@@ -41,9 +41,6 @@ def evaluate_classifier(
         precision = float(average_precision_score(y_test, y_score))
 
     metrics = {
-        #       run the code and get the error to further understand it since I didn't copy it
-        # FIXME after running the models, trying to calculate the accuracy for some models that don't
-        #       have `predict_proba` will fail since it's trying to compare continuous and binary values
         "accuracy": float(accuracy_score(y_test, y_pred)),
         "precision": float(precision_score(y_test, y_pred, zero_division=0)),
         "recall": float(recall_score(y_test, y_pred, zero_division=0)),
@@ -52,16 +49,14 @@ def evaluate_classifier(
         "avg_precision": precision,
     }
 
-    print(f"\nMetrics for {name}:")
+    print(f"\nClassification metrics for {name}:")
     for k, v in metrics.items():
-        print(f"{k:<16}: {v:.3f}")
+        print(f"{k:<16} {v:.3f}")
 
     if plot:
         ...
 
     return metrics
-
-
 
 
 def evaluate_regressor(
@@ -70,7 +65,6 @@ def evaluate_regressor(
     y_test,
     name: str,
 ) -> dict[str, float]:
-
     y_pred = model.predict(X_test)
 
     metrics = {
@@ -82,6 +76,6 @@ def evaluate_regressor(
 
     print(f"\nRegression metrics for {name}:")
     for k, v in metrics.items():
-        print(f"{k:<10}: {v:.4f}")
+        print(f"{k:<8} {v:.3f}")
 
     return metrics

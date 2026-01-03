@@ -49,8 +49,8 @@ def analyze_and_visualize_missing(df: DataFrame) -> list[str] | None:
 
     plt.figure(figsize=(10, 5))
     sns.barplot(x=missing.index.tolist(), y=missing.values)
-    plt.title("Missing Data") # TODO better title
-    plt.ylabel("Missing Rows (millions)") # TODO better title
+    plt.title("Missing Data")
+    plt.ylabel("Missing Rows")
 
     plt.xticks(rotation=45)
     plt.subplots_adjust(bottom=0.25)
@@ -59,6 +59,7 @@ def analyze_and_visualize_missing(df: DataFrame) -> list[str] | None:
     return missing[missing > 0].index.tolist()
 
 
+# TODO fix this to show either winsorization or removal
 def visualize_outlier_removal(
     df: DataFrame,
     col: str,

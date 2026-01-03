@@ -1,28 +1,22 @@
 from lightgbm import LGBMClassifier
 from sklearn.ensemble import RandomForestClassifier
-from sklearn.linear_model import LinearRegression, RidgeClassifier, LogisticRegression
+from sklearn.linear_model import RidgeClassifier, LogisticRegression
 from sklearn.neighbors import KNeighborsClassifier
 from sklearn.svm import SVC, LinearSVC
 from sklearn.tree import DecisionTreeClassifier
 from xgboost import XGBClassifier
 
 __all__ = (
-    "linear_regressor",
     "lasso_classifier",
     "ridge_classifier",
-    "knn_classifier",
     "svm_linear_classifier",
     "svm_kernel_classifier",
+    "knn_classifier",
     "decision_tree_classifier",
     "random_forest_classifier",
     "xgboost_classifier",
     "lightgbm_classifier",
 )
-
-
-# noinspection PyPep8Naming
-def linear_regressor(X_train, y_train):
-    return LinearRegression().fit(X_train, y_train)
 
 
 # lasso has no proper classifier, so we'll just bodge one like so
@@ -39,34 +33,46 @@ def lasso_classifier(X_train, y_train, alpha: float):
 
 # noinspection PyPep8Naming
 def ridge_classifier(X_train, y_train, alpha: float):
-    return RidgeClassifier(alpha=alpha).fit(X_train, y_train)
+    return RidgeClassifier(alpha=alpha, random_state=42).fit(X_train, y_train)
+
+
+# noinspection PyPep8Naming
+def svm_linear_classifier(X_train, y_train, C: float, max_iter: int = 1000):
+    return LinearSVC(
+        C=C,
+        class_weight="balanced",
+        max_iter=max_iter,
+        random_state=42,
+    ).fit(X_train, y_train)
+
+
+# noinspection PyPep8Naming
+# even though we have the option to not subsample, ideally we should since this
+# model takes forever to train with large datasets like ours
+def svm_kernel_classifier(
+    X_train,
+    y_train,
+    C: float,
+    kernel: str,
+    max_iter: int = -1,
+    max_samples: int | None = 10000,
+):
+    if max_samples and len(X_train) > max_samples:
+        X_train = X_train.sample(max_samples, random_state=42)
+        y_train = y_train.loc[X_train.index]
+
+    return SVC(
+        C=C,
+        kernel=kernel,
+        class_weight="balanced",
+        max_iter=max_iter,
+        random_state=42,
+    ).fit(X_train, y_train)
 
 
 # noinspection PyPep8Naming
 def knn_classifier(X_train, y_train, n_neighbors: int):
     return KNeighborsClassifier(n_neighbors=n_neighbors).fit(X_train, y_train)
-
-
-# noinspection PyPep8Naming
-def svm_linear_classifier(X_train, y_train, C: float, max_iter):
-    return LinearSVC(
-        C=C,
-        class_weight="balanced",
-        max_iter=max_iter,
-    ).fit(X_train, y_train)
-
-
-# noinspection PyPep8Naming
-from sklearn.svm import LinearSVC
-# or SVC with linear kernel
-
-def svm_kernel_classifier(X_train, y_train, C: float): # Linear SVM faster the RBF
-    return LinearSVC(
-        C=C,
-        class_weight="balanced",
-        max_iter=10000,
-        dual=False if X_train.shape[0] > X_train.shape[1] else True
-    ).fit(X_train, y_train)
 
 
 # noinspection PyPep8Naming
