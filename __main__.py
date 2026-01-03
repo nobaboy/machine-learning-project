@@ -237,42 +237,42 @@ def main():
 
     # ----- Modeling -----
 
-    # print("=" * 30)
-    # print("Task A")
-    # print("=" * 30)
-    #
-    # print("Linear Training")
-    # linear_c = linear_regressor(X_train, y_train)
-    #
-    # print("Lasso Training")
-    # lasso_c = lasso_classifier(X_train, y_train, alpha=0.1)
-    #
-    # print("Ridge Training")
-    # ridge_c = ridge_classifier(X_train, y_train, alpha=10)
-    #
+    print("=" * 30)
+    print("Task A")
+    print("=" * 30)
+
+    print("Linear Training")
+    linear_c = linear_regressor(X_train, y_train)
+
+    print("Lasso Training")
+    lasso_c = lasso_classifier(X_train, y_train, alpha=0.1)
+
+    print("Ridge Training")
+    ridge_c = ridge_classifier(X_train, y_train, alpha=10)
+
     # print("SVM-Linear Training")
     # svm_l_c = svm_linear_classifier(X_train, y_train, C=1.0, max_iter=10000)
-    #
-    #
-    # print("K-NN Training")
-    # knn_c = knn_classifier(X_train, y_train, n_neighbors=5)
-    #
-    # print("Decision Tree Training")
-    # decision_tree_c = decision_tree_classifier(X_train, y_train, max_depth=15)
-    #
-    # print("Random Forest Training")
-    # random_forest_c = random_forest_classifier(X_train, y_train, n_estimators=100, max_depth=10)
-    #
-    # # NVIDIA GPUs
-    # print("XGBoost Training")
-    # xgboost_c = xgboost_classifier(
-    #     X_train,
-    #     y_train,
-    #     n_estimators=500,
-    #     max_depth=10,
-    #     learning_rate=0.1,
-    #     device="cuda",
-    # )
+
+
+    print("K-NN Training")
+    knn_c = knn_classifier(X_train, y_train, n_neighbors=5)
+
+    print("Decision Tree Training")
+    decision_tree_c = decision_tree_classifier(X_train, y_train, max_depth=10)
+
+    print("Random Forest Training")
+    random_forest_c = random_forest_classifier(X_train, y_train, n_estimators=50, max_depth=10)
+
+    # NVIDIA GPUs
+    print("XGBoost Training")
+    xgboost_c = xgboost_classifier(
+        X_train,
+        y_train,
+        n_estimators=500,
+        max_depth=10,
+        learning_rate=0.1,
+        device="cuda",
+    )
 
     # AMD GPUs
     # print("LightGBM Training")
@@ -295,23 +295,23 @@ def main():
         device="gpu",
     )
 
-    # regression_models = [
-    #     linear_c,
-    #     lasso_c,
-    #     ridge_c,
-    # ]
+    regression_models = [
+        linear_c,
+        lasso_c,
+        ridge_c,
+    ]
 
     classification_models = [
         # svm_l_c
-        # knn_c,
-        # random_forest_c,
-        # decision_tree_c,
-        # xgboost_c,
+        knn_c,
+        random_forest_c,
+        decision_tree_c,
+        xgboost_c,
         lightgbm_c,
     ]
 
-    # for model in regression_models:
-    #     evaluate_regressor(model, X_test, y_test, model.__class__.__name__)
+    for model in regression_models:
+        evaluate_regressor(model, X_test, y_test, model.__class__.__name__)
 
     for model in classification_models:
         evaluate_classifier(model, X_test, y_test, model.__class__.__name__)
