@@ -18,15 +18,16 @@ from models import (
     ridge_regressor,
     elastic_net_regressor,
     svm_linear_regressor,
-    svm_kernel_regressor,
     knn_regressor,
     decision_tree_regressor,
     random_forest_regressor,
     xgboost_regressor,
+    lightgbm_classifier,
+    lightgbm_regressor,
 )
 
 from utils import get_feature_names, get_top_correlations
-from utils.evaluation import evaluate_classifier, evaluate_regressor
+from utils.evaluation import evaluate_classifier, evaluate_regressor, regression_accuracy
 from utils.feature import features
 from utils.loader import load_data, calculate_memory_usage, format_memory_size, optimize_memory_usage
 from utils.preprocessing import impute_column, winsorize_outliers, remove_multicollinearity, scale_features
@@ -236,35 +237,33 @@ def main():
 
     # ----- Modeling -----
 
-    print("=" * 30)
-    print("Task A")
-    print("=" * 30)
-
-    print("Linear Training")
-    linear_c = linear_regressor(X_train, y_train)
-
-    print("Lasso Training")
-    lasso_c = lasso_classifier(X_train, y_train, alpha=0.1)
-
-    print("Ridge Training")
-    ridge_c = ridge_classifier(X_train, y_train, alpha=10)
-
-    print("SVM-Linear Training")
-    svm_l_c = svm_linear_classifier(X_train, y_train, C=1.0, max_iter=10000)
-
-    print("SVM-Kernel Training")
-    svm_k_c = svm_kernel_classifier(X_train, y_train, C=10, kernel="rbf", max_iter=10000)
-
-    print("K-NN Training")
-    knn_c = knn_classifier(X_train, y_train, n_neighbors=5)
-
-    print("Decision Tree Training")
-    decision_tree_c = decision_tree_classifier(X_train, y_train, max_depth=15)
-
-    print("Random Forest Training")
-    random_forest_c = random_forest_classifier(X_train, y_train, n_estimators=100, max_depth=10)
-
-    # NVIDIA GPUs
+    # print("=" * 30)
+    # print("Task A")
+    # print("=" * 30)
+    #
+    # print("Linear Training")
+    # linear_c = linear_regressor(X_train, y_train)
+    #
+    # print("Lasso Training")
+    # lasso_c = lasso_classifier(X_train, y_train, alpha=0.1)
+    #
+    # print("Ridge Training")
+    # ridge_c = ridge_classifier(X_train, y_train, alpha=10)
+    #
+    # print("SVM-Linear Training")
+    # svm_l_c = svm_linear_classifier(X_train, y_train, C=1.0, max_iter=10000)
+    #
+    #
+    # print("K-NN Training")
+    # knn_c = knn_classifier(X_train, y_train, n_neighbors=5)
+    #
+    # print("Decision Tree Training")
+    # decision_tree_c = decision_tree_classifier(X_train, y_train, max_depth=15)
+    #
+    # print("Random Forest Training")
+    # random_forest_c = random_forest_classifier(X_train, y_train, n_estimators=100, max_depth=10)
+    #
+    # # NVIDIA GPUs
     # print("XGBoost Training")
     # xgboost_c = xgboost_classifier(
     #     X_train,
@@ -276,34 +275,43 @@ def main():
     # )
 
     # AMD GPUs
+    # print("LightGBM Training")
+    # lightgbm_c = lightgbm_classifier(
+    #     X_train,
+    #     y_train,
+    #     n_estimators=100,
+    #     max_depth=6,
+    #     learning_rate=0.1,
+    #     device="gpu",
+    # )
+
     print("LightGBM Training")
     lightgbm_c = lightgbm_classifier(
         X_train,
         y_train,
-        n_estimators=100,
-        max_depth=6,
-        learning_rate=0.1,
+        n_estimators=300,
+        max_depth=10,
+        learning_rate=0.05,
         device="gpu",
     )
 
-    regression_models = [
-        linear_c,
-        lasso_c,
-        ridge_c,
-    ]
+    # regression_models = [
+    #     linear_c,
+    #     lasso_c,
+    #     ridge_c,
+    # ]
 
     classification_models = [
-        svm_l_c,
-        svm_k_c,
-        knn_c,
-        random_forest_c,
-        decision_tree_c,
+        # svm_l_c
+        # knn_c,
+        # random_forest_c,
+        # decision_tree_c,
         # xgboost_c,
         lightgbm_c,
     ]
 
-    for model in regression_models:
-        evaluate_regressor(model, X_test, y_test, model.__class__.__name__)
+    # for model in regression_models:
+    #     evaluate_regressor(model, X_test, y_test, model.__class__.__name__)
 
     for model in classification_models:
         evaluate_classifier(model, X_test, y_test, model.__class__.__name__)
@@ -329,11 +337,8 @@ def main():
         l1_ratio=0.5,
     )
 
-    print("SVM Linear Training")
-    svm_l_r = svm_linear_regressor(X_train, y_train, C=1.0)
-
-    print("SVM RBF Training")
-    svm_k_r = svm_kernel_regressor(X_train, y_train, C=10)
+    # print("SVM Linear Training")
+    # svm_l_r = svm_linear_regressor(X_train, y_train, C=1.0)
 
     print("K-NN Training")
     knn_r = knn_regressor(
@@ -353,7 +358,7 @@ def main():
     random_forest_r = random_forest_regressor(
         X_train,
         y_train,
-        n_estimators=100,
+        n_estimators=50,
     )
 
     print("XGBoost Training")
@@ -363,21 +368,44 @@ def main():
         device="cuda",
     )
 
+    print("LightGBM Training")
+    lightgbm_r = lightgbm_regressor(
+        X_train,
+        y_train,
+        n_estimators=300,
+        max_depth=-1,
+        learning_rate=0.05,
+        device="gpu",
+    )
+
     regression_models = [
         linear_r,
         lasso_r,
         ridge_r,
         elastic_net_r,
-        svm_l_r,
-        svm_k_r,
+        # svm_l_r,
         knn_r,
-        random_forest_r,
         decision_tree_r,
+        random_forest_r,
         xgboost_r,
     ]
 
     for model in regression_models:
         evaluate_regressor(model, X_test, y_test, model.__class__.__name__)
+
+    print("\n" + "=" * 30)
+    print("TASK B Accuracy")
+    print("=" * 30)
+
+    for model in regression_models:
+        regression_accuracy(
+            model,
+            X_train,
+            y_train,
+            X_test,
+            y_test,
+            model.__class__.__name__,
+        )
 
 
 if __name__ == "__main__":

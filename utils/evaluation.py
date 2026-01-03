@@ -79,3 +79,14 @@ def evaluate_regressor(
         print(f"{k:<8} {v:.3f}")
 
     return metrics
+
+def regression_accuracy(model, X_train, y_train, X_test, y_test, name, threshold=0.5):
+    y_train_pred = (model.predict(X_train) >= threshold).astype(int)
+    y_test_pred = (model.predict(X_test) >= threshold).astype(int)
+
+    train_acc = accuracy_score(y_train, y_train_pred)
+    test_acc = accuracy_score(y_test, y_test_pred)
+
+    print(f"\n{name} (thresholded regression)")
+    print(f"Train accuracy : {train_acc * 100:.2f}%")
+    print(f"Test accuracy  : {test_acc * 100:.2f}%")

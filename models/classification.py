@@ -87,12 +87,14 @@ def decision_tree_classifier(X_train, y_train, max_depth=None):
 # noinspection PyPep8Naming
 def random_forest_classifier(X_train, y_train, n_estimators, max_depth=None):
     return RandomForestClassifier(
-        n_estimators=n_estimators,
-        max_depth=max_depth,
-        class_weight="balanced",
-        n_jobs=1,
-        random_state=42,
-    ).fit(X_train, y_train)
+    n_estimators=n_estimators,
+    max_depth=10,       # limit tree depth cause we have ~10m row and a small amount of ram
+    min_samples_leaf=50,
+    max_features="sqrt",
+    n_jobs=1,
+    random_state=42,
+    class_weight="balanced",
+).fit(X_train, y_train)
 
 
 # noinspection PyPep8Naming
@@ -115,19 +117,31 @@ def xgboost_classifier(
 
 
 # noinspection PyPep8Naming
+from lightgbm import LGBMRegressor
+
+
+# noinspection PyPep8Naming
+
+
+# noinspection PyPep8Naming
 def lightgbm_classifier(
     X_train,
     y_train,
-    n_estimators: int,
-    max_depth: int,
-    learning_rate: float,
-    device: str,
+    n_estimators: int = 300,
+    max_depth: int = -1,
+    learning_rate: float = 0.05,
+    device: str = "gpu",
+    verbose=-1
 ):
     return LGBMClassifier(
         n_estimators=n_estimators,
         max_depth=max_depth,
         learning_rate=learning_rate,
-        device=device,
-        n_jobs=-1,
+        device="gpu",
+        boosting_type="gbdt",
+        subsample=0.8,
+        colsample_bytree=0.8,
         random_state=42,
+        n_jobs=-1,
+        verbose=-1, # remove warning messages
     ).fit(X_train, y_train)
