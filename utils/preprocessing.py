@@ -103,7 +103,6 @@ def remove_outliers(df: DataFrame, cols: list[str], plot: bool = True):
 
         print(f"\nRemoving: {col}")
 
-        # Statistics
         before_count = len(df)
         Q1, Q3 = df[col].quantile([0.25, 0.75])
         IQR = Q3 - Q1
@@ -155,7 +154,6 @@ def winsorize_outliers(
                 before_count=len(df)
             )
 
-        # Clip values
         df[col] = df[col].clip(lower, upper)
 
         outliers_count = ((df[col] == lower) | (df[col] == upper)).sum()
@@ -198,7 +196,6 @@ def remove_multicollinearity(
     if plot:
         visualize_numerical_correlation(corr_matrix, title="Feature Correlation Heatmap (Before Removal)")
 
-    # Find highly correlated pairs
     high_corr_pairs = []
     features_to_remove = set()
 
@@ -214,7 +211,6 @@ def remove_multicollinearity(
             col2 = cols[j]
             high_corr_pairs.append((col1, col2, corr))
 
-            # Decide which to remove keep the one with higher variance
             var1 = df[col1].var()
             var2 = df[col2].var()
 
@@ -225,7 +221,6 @@ def remove_multicollinearity(
                 features_to_remove.add(col1)
                 print(f"Removing {col1} (kept {col2}, corr={corr:.3f})")
 
-    # Results
     kept_features = [col for col in feature_cols if col not in features_to_remove]
 
     if plot and 1 < len(kept_features) <= 20:

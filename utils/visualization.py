@@ -25,7 +25,6 @@ def visualize_memory_usage(before: int, after: int):
     plt.figure(figsize=(8, 5))
     axes = sns.barplot(x=labels, y=sizes, hue=labels, palette="viridis")
 
-    # TODO is there a better way of drawing the size ontop of its bar
     for container in axes.containers:
         axes.bar_label(container, fmt="%.1f MiB")
 
@@ -73,7 +72,6 @@ def visualize_outlier_removal(
     ax1.set_title("Before")
     ax1.set_xlabel(col)
 
-    # After
     sns.histplot(df[mask_keep][col], bins=30, color="green", alpha=0.6, ax=ax2)
     ax2.set_title("After")
     ax2.set_xlabel(col)
@@ -149,7 +147,6 @@ def visualize_top_correlations(
     plt.ylabel("Correlation Coefficient")
     plt.xticks(range(len(labels)), labels, rotation=45, ha="right")
 
-    # TODO surely there is a better way of doing this rather than accessing patches, could just use `plt.subplots`
     for bar, corr in zip(bars.patches, correlations):
         plt.text(
             bar.get_x() + bar.get_width() / 2,

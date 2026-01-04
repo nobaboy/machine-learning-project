@@ -6,13 +6,18 @@ from sklearn.metrics import (
     f1_score,
     roc_auc_score,
     average_precision_score,
-)
-from sklearn.metrics import (
+
     mean_squared_error,
+    root_mean_squared_error,
     mean_absolute_error,
     r2_score,
 )
-import numpy as np
+
+__all__ = (
+    "evaluate_classifier",
+    "evaluate_regressor",
+    "evaluate_regressor_accuracy"
+)
 
 
 # noinspection PyPep8Naming
@@ -59,6 +64,7 @@ def evaluate_classifier(
     return metrics
 
 
+# noinspection PyPep8Naming
 def evaluate_regressor(
     model,
     X_test,
@@ -69,7 +75,7 @@ def evaluate_regressor(
 
     metrics = {
         "mse": float(mean_squared_error(y_test, y_pred)),
-        "rmse": float(np.sqrt(mean_squared_error(y_test, y_pred))),
+        "rmse": float(root_mean_squared_error(y_test, y_pred)),
         "mae": float(mean_absolute_error(y_test, y_pred)),
         "r2": float(r2_score(y_test, y_pred)),
     }
@@ -80,13 +86,8 @@ def evaluate_regressor(
 
     return metrics
 
-def regression_accuracy(model, X_train, y_train, X_test, y_test, name, threshold=0.5):
-    y_train_pred = (model.predict(X_train) >= threshold).astype(int)
-    y_test_pred = (model.predict(X_test) >= threshold).astype(int)
 
-    train_acc = accuracy_score(y_train, y_train_pred)
-    test_acc = accuracy_score(y_test, y_test_pred)
-
-    print(f"\n{name} (thresholded regression)")
-    print(f"Train accuracy : {train_acc * 100:.2f}%")
-    print(f"Test accuracy  : {test_acc * 100:.2f}%")
+# noinspection PyPep8Naming
+def evaluate_regressor_accuracy(model, X, y, days: int = 3):
+    y_pred = model.predict(X)
+    return float(np.mean(np.abs(y_pred - y) <= days))

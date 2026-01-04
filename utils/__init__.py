@@ -9,9 +9,7 @@ __all__ = (
 EXCLUDED_COLUMNS: set[str] = {"user_id", "product_id", "order_id", "reordered"}
 
 
-def get_feature_names(
-    df: DataFrame,
-) -> list[str]:
+def get_feature_names(df: DataFrame) -> list[str]:
     feature_cols = [col for col in df.columns if col not in EXCLUDED_COLUMNS]
 
     print(f"\nFeature columns ({len(feature_cols)} total):")
