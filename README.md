@@ -39,4 +39,4 @@ Estimated understanding ~65%
 
 Estimated understanding ~70%
 
-Both contributors should cover the entirety of the project's understanding.
+Both contributors should cover the entirety of the project's understanding. Note that this project is not perfect nor completely finished.
