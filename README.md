@@ -12,7 +12,7 @@ pip install -r requirements.txt
 
 The project is run from the `__main__.py` script, the project does not auto generate a run configuration for IDEs such as PyCharm or VS Code.
 
-Creating a run configuration or running `__main__.py` from the terminal should work fine. (e.g. `python __main__.py`)
+Creating a run configuration or running `__main__.py` from the terminal should work fine (e.g. `python __main__.py`)
 
 ## Workload Distribution
 
