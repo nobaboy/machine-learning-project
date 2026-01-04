@@ -284,6 +284,9 @@ def main():
     xgboost_r = xgboost_regressor(
         X_train,
         y_train,
+        n_estimators=500,
+        max_depth=10,
+        learning_rate=0.1,
         device="cuda",
     )
 
@@ -293,7 +296,7 @@ def main():
     #     X_train,
     #     y_train,
     #     n_estimators=300,
-    #     max_depth=-1,
+    #     max_depth=10,
     #     learning_rate=0.05,
     #     device="gpu",
     # )
@@ -324,8 +327,8 @@ def main():
         test_accuracy = evaluate_regressor_accuracy(model, X_test, y_test)
 
         print(f"\n{model.__class__.__name__}")
-        print(f"Train: {train_accuracy:.3f}")
-        print(f"Test: {test_accuracy:.3f}")
+        print(f"Train: {train_accuracy * 100:.1f}%")
+        print(f"Test: {test_accuracy * 100:.1f}%")
 
 
 if __name__ == "__main__":

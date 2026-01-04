@@ -125,21 +125,18 @@ def random_forest_regressor(
 def xgboost_regressor(
     X_train,
     y_train,
-    n_estimators: int = 300,
-    max_depth: int = 6,
-    learning_rate: float = 0.1,
+    n_estimators: int,
+    max_depth: int,
+    learning_rate: float,
     device: str = "cuda",
 ):
     return XGBRegressor(
         n_estimators=n_estimators,
         max_depth=max_depth,
         learning_rate=learning_rate,
-        objective="reg:squarederror",
-        tree_method="hist",
         device=device,
-        subsample=0.8,
-        colsample_bytree=0.8,
         n_jobs=1,
+        verbosity=-1,
         random_state=42,
     ).fit(X_train, y_train)
 
@@ -148,10 +145,10 @@ def xgboost_regressor(
 def lightgbm_regressor(
     X_train,
     y_train,
-    n_estimators: int = 300,
-    max_depth: int = -1,
-    learning_rate: float = 0.05,
-    num_leaves: int = 31,
+    n_estimators: int,
+    max_depth: int,
+    learning_rate: float,
+    num_leaves: int = 30,
     device: str = "gpu",
 ):
     return LGBMRegressor(
@@ -159,11 +156,8 @@ def lightgbm_regressor(
         max_depth=max_depth,
         learning_rate=learning_rate,
         num_leaves=num_leaves,
-        objective="regression",
         device=device,
-        subsample=0.8,
-        colsample_bytree=0.8,
-        random_state=42,
         n_jobs=-1,
         verbose=-1,
+        random_state=42,
     ).fit(X_train, y_train)

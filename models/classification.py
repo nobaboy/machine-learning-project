@@ -123,7 +123,7 @@ def xgboost_classifier(
     n_estimators: int,
     max_depth: int,
     learning_rate: float,
-    device: str,
+    device: str = "cuda",
 ):
     return XGBClassifier(
         n_estimators=n_estimators,
@@ -131,6 +131,7 @@ def xgboost_classifier(
         learning_rate=learning_rate,
         device=device,
         n_jobs=-1,
+        verbosity=-1,
         random_state=42,
     ).fit(X_train, y_train)
 
@@ -139,20 +140,19 @@ def xgboost_classifier(
 def lightgbm_classifier(
     X_train,
     y_train,
-    n_estimators: int = 300,
-    max_depth: int = -1,
-    learning_rate: float = 0.05,
+    n_estimators: int,
+    max_depth: int,
+    learning_rate: float,
+    num_leaves: int = 30,
     device: str = "gpu",
 ):
     return LGBMClassifier(
         n_estimators=n_estimators,
         max_depth=max_depth,
         learning_rate=learning_rate,
+        num_leaves=num_leaves,
         device=device,
-        boosting_type="gbdt",
-        subsample=0.8,
-        colsample_bytree=0.8,
-        random_state=42,
         n_jobs=-1,
         verbose=-1,
+        random_state=42,
     ).fit(X_train, y_train)
